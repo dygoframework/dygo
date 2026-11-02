@@ -1,0 +1,54 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+	"github.com/dygoframework/dygo/sql"
+	"github.com/dygoframework/dygo/validate"
+
+	"example.com/app/security"
+	"example.com/app/security/securitytest"
+)
+
+func TestProductsCRUD(t *testing.T) {
+	securitytest.Setup(t)
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), security.Module, ProductsModule}}
+	srv := dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
+	reader := securitytest.User("2", "user")
+	writer := securitytest.User("1", "admin")
+
+	// Security: who may call what.
+	srv.GET("/products").Do(t).Status(t, 401)
+	srv.GET("/products").With(reader).Do(t).Status(t, 200)
+	srv.POST("/products").JSON(CreateProduct{}).Do(t).Status(t, 401)
+	srv.POST("/products").With(reader).JSON(CreateProduct{}).Do(t).Status(t, 403)
+	srv.DELETE("/products/1").With(reader).Do(t).Status(t, 403)
+
+	var created Product
+	srv.POST("/products").With(writer).JSON(CreateProduct{
+		Name: "name 1",
+	}).Do(t).Status(t, 201).JSON(t, &created)
+	if created.ID == 0 {
+		t.Fatalf("created %+v", created)
+	}
+	srv.POST("/products").With(writer).JSON(CreateProduct{}).Do(t).Status(t, 400)
+
+	var list []Product
+	srv.GET("/products").With(reader).Do(t).Status(t, 200).JSON(t, &list)
+	if len(list) != 1 {
+		t.Fatalf("list %+v", list)
+	}
+
+	name := "changed"
+	var updated Product
+	srv.PATCH("/products/1").With(writer).JSON(UpdateProduct{Name: &name}).Do(t).Status(t, 200).JSON(t, &updated)
+	if updated.Name != name {
+		t.Fatalf("updated %+v", updated)
+	}
+
+	srv.DELETE("/products/1").With(writer).Do(t).Status(t, 204)
+	srv.GET("/products/1").With(reader).Do(t).Status(t, 404)
+	srv.GET("/products/abc").With(reader).Do(t).Status(t, 400)
+}

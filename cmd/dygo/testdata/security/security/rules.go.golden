@@ -1,0 +1,25 @@
+package security
+
+// Rules decides who may call which route.
+// They are checked top to bottom and the first match wins. A route that no
+// rule matches needs a signed in user: the guard always adds
+// AnyRequest().Authenticated() at the end, so a new route is never public by
+// accident.
+//
+// Patterns are route paths, with the global prefix if you set one: * is one
+// segment and ** any number. Route options (Public, Roles, Authorities) and
+// Require in services add to these rules.
+func Rules(cfg *Config) []Rule {
+	rules := []Rule{
+		Path("/").PermitAll(),          // the welcome route of dygo new; remove it when / serves data
+		Path("/health/**").PermitAll(), // load balancers and Kubernetes probes
+		Path("/auth/register", "/auth/login", "/auth/refresh", "/auth/logout").PermitAll(), // logout needs only the refresh token
+		Path("/admin/**").HasRole("admin"),
+		// Method("GET").Path("/products/**").PermitAll(),
+		// Method("POST", "PUT", "PATCH", "DELETE").Path("/products/**").HasAuthority("products:write"),
+	}
+	if !cfg.Production() {
+		rules = append(rules, Path("/docs", "/openapi.json").PermitAll()) // API docs, locked in production
+	}
+	return append(rules, AnyRequest().Authenticated())
+}

@@ -1,0 +1,314 @@
+package security_test
+
+import (
+	"bytes"
+	"context"
+	"crypto/pbkdf2"
+	"crypto/sha256"
+	"encoding/base64"
+	"fmt"
+	"log/slog"
+	"slices"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+	"github.com/dygoframework/dygo/logger"
+	"github.com/dygoframework/dygo/validate"
+
+	"github.com/dygoframework/dygo/examples/academy/internal/modules/security"
+	"github.com/dygoframework/dygo/examples/academy/internal/modules/security/securitytest"
+)
+
+// orders is a small controller to test the rules and route options on.
+type orders struct{}
+
+func (orders) Routes(r dygo.Router) {
+	r.Get("/admin/stats", dygo.HandleNoInput(func(context.Context) (string, error) { return "stats", nil }))
+	r = r.Prefix("/orders")
+	r.Get("/", dygo.HandleNoInput(func(context.Context) (string, error) { return "list", nil }))
+	r.Get("/catalog", dygo.HandleNoInput(func(context.Context) (string, error) { return "open", nil }), security.Public())
+	r.Delete("/{id}", dygo.HandleNoInput(func(context.Context) (string, error) { return "gone", nil }), security.Roles("admin"))
+	r.Put("/{id}", dygo.HandleNoInput(func(context.Context) (string, error) { return "saved", nil }), security.Authorities("orders:write"))
+	r.Post("/{id}/cancel", dygo.HandleNoInput(cancel))
+}
+
+// cancel checks inside the handler, as a service method would.
+func cancel(ctx context.Context) (string, error) {
+	if err := security.Require(ctx, security.HasRole("user")); err != nil {
+		return "", err
+	}
+	return "cancelled", security.RequireOwner(ctx, 7)
+}
+
+// newServer builds the test app; imports adds modules such as a logger.
+func newServer(t *testing.T, imports ...*dygo.Module) *dygotest.Server {
+	securitytest.Setup(t)
+	app := &dygo.Module{
+		Name:        "app",
+		Imports:     append([]*dygo.Module{security.Module}, imports...),
+		Controllers: []dygo.Provider{dygo.Provide(func() orders { return orders{} })},
+	}
+	return dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
+}
+
+func TestDenyByDefault(t *testing.T) {
+	srv := newServer(t)
+	srv.GET("/orders").Do(t).Status(t, 401)
+	srv.GET("/orders").Header("Authorization", "Bearer nope").Do(t).Status(t, 401)
+	srv.GET("/orders").Header("Authorization", "Basic YTpi").Do(t).Status(t, 401)
+	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+	srv.GET("/orders/catalog").Do(t).Status(t, 200)
+	srv.GET("/health/live").Do(t).Status(t, 404) // public, and not part of this test app
+}
+
+func TestRolesAndAuthorities(t *testing.T) {
+	srv := newServer(t)
+	srv.DELETE("/orders/1").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.DELETE("/orders/1").With(securitytest.Admin()).Do(t).Status(t, 200)
+	srv.PUT("/orders/1").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.PUT("/orders/1").With(securitytest.As(security.Principal{Subject: "7", Authorities: []string{"orders:write"}})).Do(t).Status(t, 200)
+}
+
+func TestPathRules(t *testing.T) {
+	srv := newServer(t)
+	srv.GET("/admin/stats").Do(t).Status(t, 401)
+	srv.GET("/admin/stats").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.GET("/admin/stats").With(securitytest.Admin()).Do(t).Status(t, 200)
+}
+
+func TestRequireAndOwner(t *testing.T) {
+	srv := newServer(t)
+	srv.POST("/orders/1/cancel").With(securitytest.User("7", "user")).Do(t).Status(t, 201)
+	srv.POST("/orders/1/cancel").With(securitytest.User("8", "user")).Do(t).Status(t, 403) // not the owner
+	srv.POST("/orders/1/cancel").With(securitytest.Admin()).Do(t).Status(t, 201)           // admin includes user, and may cancel any order
+	srv.POST("/orders/1/cancel").With(securitytest.User("7")).Do(t).Status(t, 403)         // no role
+}
+
+func TestHierarchy(t *testing.T) {
+	admin := security.Principal{Subject: "1", Roles: []string{"admin"}}
+	if !admin.HasRole("user") || !admin.HasRole("admin") {
+		t.Fatal("admin should include user")
+	}
+	user := security.Principal{Subject: "2", Roles: []string{"user"}}
+	if user.HasRole("admin") {
+		t.Fatal("user must not include admin")
+	}
+	ctx := securitytest.Context(context.Background(), user)
+	if err := security.Require(ctx, security.HasAnyRole("admin", "user")); err != nil {
+		t.Fatal(err)
+	}
+	if err := security.Require(context.Background(), security.Authenticated()); err == nil {
+		t.Fatal("no user must fail")
+	}
+}
+
+// TestSecurityLog checks that denied requests, bad tokens, failed logins
+// and reused refresh tokens are logged (OWASP A09), and that passwords and
+// tokens never are.
+func TestSecurityLog(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	srv := newServer(t, logger.Module(log))
+	token := securitytest.Token(security.Principal{Subject: "7", Roles: []string{"user"}})
+	srv.GET("/admin/stats").Header("Authorization", "Bearer "+token).Do(t).Status(t, 403)
+	srv.GET("/orders").Header("Authorization", "Bearer "+token+"x").Do(t).Status(t, 401)
+	secrets := []string{token}
+	want := []string{"access denied", "bad token"}
+
+	creds := security.Credentials{Email: "eve@example.com", Password: "correct horse battery"}
+	wrong := security.Credentials{Email: creds.Email, Password: "wrong horse battery"}
+	srv.POST("/auth/register").JSON(creds).Do(t).Status(t, 201)
+	srv.POST("/auth/login").JSON(wrong).Do(t).Status(t, 401)
+	var tok security.TokenOut
+	srv.POST("/auth/login").JSON(creds).Do(t).Status(t, 200).JSON(t, &tok)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: tok.RefreshToken}).Do(t).Status(t, 200)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: tok.RefreshToken}).Do(t).Status(t, 401)
+	secrets = append(secrets, creds.Password, wrong.Password, tok.AccessToken, tok.RefreshToken)
+	want = append(want, "login failed", "refresh token used twice")
+
+	out := buf.String()
+	for _, w := range want {
+		if !strings.Contains(out, w) {
+			t.Errorf("the log has no %q:\n%s", w, out)
+		}
+	}
+	for _, secret := range secrets {
+		if strings.Contains(out, secret) {
+			t.Errorf("the log shows the secret %q", secret)
+		}
+	}
+}
+
+// TestForgedTokens sends tokens that must all be refused (OWASP A02, A07):
+// signed with another secret, from another issuer, expired, unsigned, or
+// with a changed payload.
+func TestForgedTokens(t *testing.T) {
+	srv := newServer(t)
+	user := security.Principal{Subject: "7", Roles: []string{"user"}}
+	issue := func(secret, issuer string, ttl time.Duration) string {
+		tokens, err := security.NewTokens(&security.Config{Secret: secret, Issuer: issuer, TokenTTL: ttl})
+		if err != nil {
+			t.Fatal(err)
+		}
+		token, _, err := tokens.Issue(user)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return token
+	}
+	get := func(token string) *dygotest.Res {
+		return srv.GET("/orders").Header("Authorization", "Bearer "+token).Do(t)
+	}
+	token := issue(securitytest.Secret, "dygo", time.Hour)
+	get(token).Status(t, 200)
+
+	header, rest, _ := strings.Cut(token, ".")
+	payload, sig, _ := strings.Cut(rest, ".")
+	b := base64.RawURLEncoding
+	claims, _ := b.DecodeString(payload)
+	admin := strings.Replace(string(claims), `"roles":["user"]`, `"roles":["admin"]`, 1)
+	if admin == string(claims) {
+		t.Fatalf("no roles in %s", claims)
+	}
+	for name, forged := range map[string]string{
+		"other secret":    issue(strings.Repeat("x", 32), "dygo", time.Hour),
+		"other issuer":    issue(securitytest.Secret, "evil", time.Hour),
+		"expired":         issue(securitytest.Secret, "dygo", -time.Hour),
+		"alg none":        b.EncodeToString([]byte(`{"alg":"none","typ":"JWT"}`)) + "." + payload + ".",
+		"no signature":    header + "." + payload + ".",
+		"changed payload": header + "." + b.EncodeToString([]byte(admin)) + "." + sig,
+	} {
+		res := get(forged)
+		if res.StatusCode != 401 {
+			t.Errorf("%s: %d, want 401", name, res.StatusCode)
+		}
+		if body := res.Text(); strings.Contains(body, "expired") || strings.Contains(body, "issuer") {
+			t.Errorf("%s: the answer tells why: %s", name, body) // the reason stays in the log
+		}
+	}
+}
+
+func TestRegisterLoginMe(t *testing.T) {
+	srv := newServer(t)
+	creds := security.Credentials{Email: "ada@example.com", Password: "correct horse battery"}
+
+	var u security.User
+	srv.POST("/auth/register").JSON(creds).Do(t).Status(t, 201).JSON(t, &u)
+	if u.ID == 0 || u.Email != creds.Email {
+		t.Fatalf("registered %+v", u)
+	}
+	srv.POST("/auth/register").JSON(creds).Do(t).Status(t, 409)
+	srv.POST("/auth/register").JSON(security.Credentials{Email: "nope", Password: "short"}).Do(t).Status(t, 400)
+
+	srv.POST("/auth/login").JSON(security.Credentials{Email: creds.Email, Password: "wrong password"}).Do(t).Status(t, 401)
+	srv.POST("/auth/login").JSON(security.Credentials{Email: "who@example.com", Password: "wrong password"}).Do(t).Status(t, 401)
+	var tok security.TokenOut
+	srv.POST("/auth/login").JSON(creds).Do(t).Status(t, 200).JSON(t, &tok)
+
+	srv.GET("/auth/me").Do(t).Status(t, 401)
+	srv.GET("/auth/me").Header("Authorization", "Bearer "+tok.AccessToken+"x").Do(t).Status(t, 401)
+	var me security.User
+	srv.GET("/auth/me").Header("Authorization", "Bearer "+tok.AccessToken).Do(t).Status(t, 200).JSON(t, &me)
+	if me.ID != u.ID {
+		t.Fatalf("me %+v", me)
+	}
+	srv.GET("/orders").Header("Authorization", "Bearer "+tok.AccessToken).Do(t).Status(t, 200)
+}
+
+func TestRefreshAndLogout(t *testing.T) {
+	srv := newServer(t)
+	tok := signUp(t, srv)
+	if tok.RefreshToken == "" {
+		t.Fatal("login returned no refresh token")
+	}
+
+	var next security.TokenOut
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: tok.RefreshToken}).Do(t).Status(t, 200).JSON(t, &next)
+	if next.RefreshToken == "" || next.RefreshToken == tok.RefreshToken {
+		t.Fatalf("refresh token not rotated: %+v", next)
+	}
+	srv.GET("/auth/me").Header("Authorization", "Bearer "+next.AccessToken).Do(t).Status(t, 200)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: "made up"}).Do(t).Status(t, 401)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{}).Do(t).Status(t, 400)
+
+	srv.POST("/auth/logout").JSON(security.RefreshBody{RefreshToken: next.RefreshToken}).Do(t).Status(t, 204)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: next.RefreshToken}).Do(t).Status(t, 401)
+}
+
+func TestRefreshReuseRevokesLogin(t *testing.T) {
+	srv := newServer(t)
+	stolen := signUp(t, srv).RefreshToken
+
+	var next security.TokenOut
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: stolen}).Do(t).Status(t, 200).JSON(t, &next)
+	// The thief replays the spent token: the whole login ends, for the user too.
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: stolen}).Do(t).Status(t, 401)
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: next.RefreshToken}).Do(t).Status(t, 401)
+}
+
+func TestRefreshRace(t *testing.T) {
+	srv := newServer(t)
+	token := signUp(t, srv).RefreshToken
+	var wg sync.WaitGroup
+	codes := make([]int, 8)
+	for i := range codes {
+		wg.Go(func() {
+			codes[i] = srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: token}).Do(t).StatusCode
+		})
+	}
+	wg.Wait()
+	if n := slices.Index(codes, 200); n < 0 || slices.Contains(codes[n+1:], 200) {
+		t.Fatalf("one request must win the race, got %v", codes)
+	}
+}
+
+func TestRateLimit(t *testing.T) {
+	srv := newServer(t)
+	for range 10 {
+		srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: "guess"}).Do(t).Status(t, 401)
+	}
+	srv.POST("/auth/refresh").JSON(security.RefreshBody{RefreshToken: "guess"}).Do(t).Status(t, 429)
+}
+
+func TestRehash(t *testing.T) {
+	salt := []byte("0123456789abcdef")
+	key, err := pbkdf2.Key(sha256.New, "correct horse battery", salt, 1000, 32)
+	if err != nil {
+		t.Fatal(err)
+	}
+	enc := base64.RawStdEncoding
+	old := fmt.Sprintf("pbkdf2-sha256$1000$%s$%s", enc.EncodeToString(salt), enc.EncodeToString(key))
+	if !security.CheckPassword(old, "correct horse battery") || !security.NeedsRehash(old) {
+		t.Fatal("an old hash should still check, and need a rehash")
+	}
+	current, err := security.HashPassword("correct horse battery")
+	if err != nil || security.NeedsRehash(current) {
+		t.Fatalf("a new hash needs no rehash (%v)", err)
+	}
+}
+
+// signUp registers a user and logs in.
+func signUp(t *testing.T, srv *dygotest.Server) security.TokenOut {
+	t.Helper()
+	creds := security.Credentials{Email: "grace@example.com", Password: "correct horse battery"}
+	srv.POST("/auth/register").JSON(creds).Do(t).Status(t, 201)
+	var tok security.TokenOut
+	srv.POST("/auth/login").JSON(creds).Do(t).Status(t, 200).JSON(t, &tok)
+	return tok
+}
+
+func TestRuleMatching(t *testing.T) {
+	cfg := &security.Config{AppEnv: "production"}
+	for _, r := range security.Rules(cfg) {
+		if r.String() == "" {
+			t.Fatal("rules describe themselves")
+		}
+	}
+	if s := security.Path("/admin/**").HasRole("admin").String(); s != "/admin/** -> role:admin" {
+		t.Fatalf("String() = %q", s)
+	}
+}

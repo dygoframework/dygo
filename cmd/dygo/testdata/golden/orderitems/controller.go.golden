@@ -1,0 +1,68 @@
+package orderitems
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+)
+
+// Controller maps /order-items to the service.
+type Controller struct {
+	svc *Service
+}
+
+// NewController is the constructor.
+func NewController(svc *Service) *Controller {
+	return &Controller{svc: svc}
+}
+
+// Routes registers the CRUD routes.
+func (c *Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/order-items")
+	r.Get("/", dygo.HandleNoInput(c.List))
+	r.Get("/{id}", dygo.Handle(c.Get))
+	r.Post("/", dygo.Handle(c.Create))
+	r.Patch("/{id}", dygo.Handle(c.Update))
+	r.Delete("/{id}", dygo.Handle(c.Delete))
+}
+
+// IDIn is the {id} path parameter.
+type IDIn struct {
+	ID int `path:"id"`
+}
+
+// CreateIn is the input of POST /order-items.
+type CreateIn struct {
+	Body CreateOrderItem `body:"json"`
+}
+
+// UpdateIn is the input of PATCH /order-items/{id}.
+type UpdateIn struct {
+	ID   int             `path:"id"`
+	Body UpdateOrderItem `body:"json"`
+}
+
+// List answers GET /order-items.
+func (c *Controller) List(ctx context.Context) ([]OrderItem, error) {
+	return c.svc.List(ctx)
+}
+
+// Get answers GET /order-items/{id}.
+func (c *Controller) Get(ctx context.Context, in IDIn) (OrderItem, error) {
+	return c.svc.Get(ctx, in.ID)
+}
+
+// Create answers POST /order-items with 201.
+func (c *Controller) Create(ctx context.Context, in CreateIn) (OrderItem, error) {
+	return c.svc.Create(ctx, in.Body)
+}
+
+// Update answers PATCH /order-items/{id}.
+func (c *Controller) Update(ctx context.Context, in UpdateIn) (OrderItem, error) {
+	return c.svc.Update(ctx, in.ID, in.Body)
+}
+
+// Delete answers DELETE /order-items/{id} with 204.
+func (c *Controller) Delete(ctx context.Context, in IDIn) (dygo.NoContent, error) {
+	return dygo.NoContent{}, c.svc.Delete(ctx, in.ID)
+}

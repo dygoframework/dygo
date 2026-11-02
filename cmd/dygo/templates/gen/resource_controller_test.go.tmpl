@@ -1,0 +1,82 @@
+package {{.Package}}
+
+import (
+	"testing"
+{{- range .Fields.TestImports}}
+	"{{.}}"
+{{- end}}
+
+	"{{.Framework}}"
+	"{{.Framework}}/dygotest"
+	"{{.Framework}}/sql"
+	"{{.Framework}}/validate"
+{{- with .Sec}}
+
+	"{{.ImportPath}}"
+	"{{.ImportPath}}/securitytest"
+{{- end}}
+)
+
+func Test{{.P}}CRUD(t *testing.T) {
+{{- if .Sec}}
+	securitytest.Setup(t)
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.Sec.Pkg}}.Module, {{.P}}Module}}
+{{- else}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.P}}Module}}
+{{- end}}
+	srv := dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
+{{- if and .Sec (not .Sec.Public)}}
+	reader := securitytest.User("2", "user")
+{{- if .Sec.WriteRole}}
+	writer := securitytest.User("1", "{{.Sec.WriteRole}}")
+{{- else}}
+	writer := reader
+{{- end}}
+
+	// Security: who may call what.
+{{- if .Sec.PublicRead}}
+	srv.GET("/{{.Kebab}}").Do(t).Status(t, 200)
+{{- else}}
+	srv.GET("/{{.Kebab}}").Do(t).Status(t, 401)
+	srv.GET("/{{.Kebab}}").With(reader).Do(t).Status(t, 200)
+{{- end}}
+	srv.POST("/{{.Kebab}}").JSON(Create{{.Entity}}{}).Do(t).Status(t, 401)
+{{- if .Sec.WriteRole}}
+	srv.POST("/{{.Kebab}}").With(reader).JSON(Create{{.Entity}}{}).Do(t).Status(t, 403)
+	srv.DELETE("/{{.Kebab}}/1").With(reader).Do(t).Status(t, 403)
+{{- end}}
+{{- end}}
+
+	var created {{.Entity}}
+	srv.POST("/{{.Kebab}}"){{.AsWriter}}.JSON(Create{{.Entity}}{
+{{- range .Fields}}
+		{{.SampleElt}}
+{{- end}}
+	}).Do(t).Status(t, 201).JSON(t, &created)
+	if created.ID == 0 {
+		t.Fatalf("created %+v", created)
+	}
+{{- if .Fields.HasRequired}}
+	srv.POST("/{{.Kebab}}"){{.AsWriter}}.JSON(Create{{.Entity}}{}).Do(t).Status(t, 400)
+{{- end}}
+
+	var list []{{.Entity}}
+	srv.GET("/{{.Kebab}}"){{.AsReader}}.Do(t).Status(t, 200).JSON(t, &list)
+	if len(list) != 1 {
+		t.Fatalf("list %+v", list)
+	}
+{{with .Fields.PatchField}}
+	{{.JSON}} := "changed"
+	var updated {{$.Entity}}
+	srv.PATCH("/{{$.Kebab}}/1"){{$.AsWriter}}.JSON(Update{{$.Entity}}{ {{- .Name}}: &{{.JSON}}}).Do(t).Status(t, 200).JSON(t, &updated)
+	if updated.{{.Name}} != {{.JSON}} {
+		t.Fatalf("updated %+v", updated)
+	}
+{{- else}}
+	srv.PATCH("/{{.Kebab}}/1"){{.AsWriter}}.JSON(Update{{.Entity}}{}).Do(t).Status(t, 200)
+{{- end}}
+
+	srv.DELETE("/{{.Kebab}}/1"){{.AsWriter}}.Do(t).Status(t, 204)
+	srv.GET("/{{.Kebab}}/1"){{.AsReader}}.Do(t).Status(t, 404)
+	srv.GET("/{{.Kebab}}/abc"){{.AsReader}}.Do(t).Status(t, 400)
+}

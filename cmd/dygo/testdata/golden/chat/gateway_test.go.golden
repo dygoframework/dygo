@@ -1,0 +1,13 @@
+package chat
+
+import (
+	"context"
+	"testing"
+)
+
+func TestPing(t *testing.T) {
+	out, err := NewGateway().ping(context.Background(), nil, Ping{Text: "hi"})
+	if err != nil || out.Text != "hi" {
+		t.Fatalf("got %+v, %v", out, err)
+	}
+}

@@ -1,0 +1,89 @@
+CREATE security/module.go
+CREATE security/config.go
+CREATE security/rules.go
+CREATE security/rule.go
+CREATE security/guard.go
+CREATE security/principal.go
+CREATE security/roles.go
+CREATE security/authorize.go
+CREATE security/cors.go
+CREATE security/users.go
+CREATE security/password.go
+CREATE security/tokens.go
+CREATE security/tokencache.go
+CREATE security/refresh.go
+CREATE security/service.go
+CREATE security/dto.go
+CREATE security/controller.go
+CREATE security/security_test.go
+CREATE security/securitytest/securitytest.go
+UPDATE app.go (Imports += security.Module)
+UPDATE .env.example (AUTH_SECRET, AUTH_TOKEN_TTL, AUTH_REFRESH_TTL, CORS_ALLOWED_ORIGINS)
+UPDATE app.go (Imports += sql.Module(nil): the database in DATABASE_URL)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+UPDATE dygo.json ("security": true)
+UPDATE app.go (dygo.WithMiddleware += security.CORS())
+UPDATE app.go (dygo.WithMiddleware += middleware.SecureHeaders(middleware.SecureHeadersOptions{}))
+
+Every route now needs a bearer token, unless security/rules.go or security.Public() opens it.
+Next:
+  set AUTH_SECRET in .env                    # openssl rand -hex 32
+  POST /auth/register, POST /auth/login, POST /auth/refresh, POST /auth/logout, GET /auth/me
+  with a database:  dygo g migration, add CREATE UNIQUE INDEX users_email ON users (email);
+                    then dygo db migrate   # tables users, refresh_tokens, refresh_families
+  open a route:     r.Get("/", h, security.Public())
+  need a role:      r.Delete("/{id}", h, security.Roles("admin"))
+  in a service:     err := security.Require(ctx, security.HasAuthority("orders:cancel"))
+  read the user:    p, _ := security.CurrentUser(ctx)
+  in tests:         securitytest.Setup(t); srv.GET("/x").With(securitytest.User("7", "user"))
+CREATE products.module.go
+CREATE products.go
+CREATE products.service.go
+CREATE products.controller.go
+CREATE products.controller_test.go
+UPDATE app.go (Imports += ProductsModule)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+
+ Success! CRUD for Product:
+
+   GET    /products          List    (index)
+   POST   /products          Create  (new)
+   GET    /products/{id}     Get     (show)
+   PATCH  /products/{id}     Update  (edit)
+   DELETE /products/{id}     Delete  (delete)
+
+ Next: go test ./... and dygo routes; try them at /docs.
+
+Security: list and get need a signed in user; create, update and delete need the admin role. Change it with -public-read, -write-role or security/rules.go.
+CREATE posts.module.go
+CREATE posts.go
+CREATE posts.service.go
+CREATE posts.controller.go
+CREATE posts.controller_test.go
+UPDATE app.go (Imports += PostsModule)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+
+ Success! CRUD for Post:
+
+   GET    /posts          List    (index)
+   POST   /posts          Create  (new)
+   GET    /posts/{id}     Get     (show)
+   PATCH  /posts/{id}     Update  (edit)
+   DELETE /posts/{id}     Delete  (delete)
+
+ Next: go test ./... and dygo routes; try them at /docs.
+
+Security: list and get are public; create, update and delete need a signed in user. Change it with -public-read, -write-role or security/rules.go.
+CREATE billing.controller.go
+CREATE billing.controller_test.go
+UPDATE app.go (Controllers += dygo.Provide(NewBillingController))
+
+Security: these routes need a signed in user, unless security/rules.go opens them; -public makes them public.
+CREATE hooks.controller.go
+CREATE hooks.controller_test.go
+UPDATE app.go (Controllers += dygo.Provide(NewHooksController))
+
+Security: these routes are public (security.Public()).

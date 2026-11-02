@@ -1,0 +1,68 @@
+package invoices
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+)
+
+// Controller maps /invoices to the service.
+type Controller struct {
+	svc *Service
+}
+
+// NewController is the constructor.
+func NewController(svc *Service) *Controller {
+	return &Controller{svc: svc}
+}
+
+// Routes registers the CRUD routes.
+func (c *Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/invoices")
+	r.Get("/", dygo.HandleNoInput(c.List))
+	r.Get("/{id}", dygo.Handle(c.Get))
+	r.Post("/", dygo.Handle(c.Create))
+	r.Patch("/{id}", dygo.Handle(c.Update))
+	r.Delete("/{id}", dygo.Handle(c.Delete))
+}
+
+// IDIn is the {id} path parameter.
+type IDIn struct {
+	ID int `path:"id"`
+}
+
+// CreateIn is the input of POST /invoices.
+type CreateIn struct {
+	Body CreateInvoice `body:"json"`
+}
+
+// UpdateIn is the input of PATCH /invoices/{id}.
+type UpdateIn struct {
+	ID   int           `path:"id"`
+	Body UpdateInvoice `body:"json"`
+}
+
+// List answers GET /invoices.
+func (c *Controller) List(ctx context.Context) ([]Invoice, error) {
+	return c.svc.List(ctx)
+}
+
+// Get answers GET /invoices/{id}.
+func (c *Controller) Get(ctx context.Context, in IDIn) (Invoice, error) {
+	return c.svc.Get(ctx, in.ID)
+}
+
+// Create answers POST /invoices with 201.
+func (c *Controller) Create(ctx context.Context, in CreateIn) (Invoice, error) {
+	return c.svc.Create(ctx, in.Body)
+}
+
+// Update answers PATCH /invoices/{id}.
+func (c *Controller) Update(ctx context.Context, in UpdateIn) (Invoice, error) {
+	return c.svc.Update(ctx, in.ID, in.Body)
+}
+
+// Delete answers DELETE /invoices/{id} with 204.
+func (c *Controller) Delete(ctx context.Context, in IDIn) (dygo.NoContent, error) {
+	return dygo.NoContent{}, c.svc.Delete(ctx, in.ID)
+}

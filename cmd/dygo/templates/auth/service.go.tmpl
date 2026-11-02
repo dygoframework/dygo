@@ -1,0 +1,55 @@
+package {{.Pkg}}
+
+import (
+	"context"
+
+	"{{.Framework}}/errs"
+)
+
+// Service registers users and logs them in.
+type Service struct {
+	users  *Users
+	tokens *Tokens
+}
+
+// NewService is the constructor.
+func NewService(users *Users, tokens *Tokens) *Service {
+	return &Service{users: users, tokens: tokens}
+}
+
+// Register creates a user with the "user" role, or answers 409 when the
+// email is taken.
+func (s *Service) Register(ctx context.Context, in Credentials) (User, error) {
+	hash, err := HashPassword(in.Password)
+	if err != nil {
+		return User{}, err
+	}
+	u, ok := s.users.Create(ctx, User{Email: in.Email, Roles: []string{"user"}, PasswordHash: hash})
+	if !ok {
+		return User{}, errs.Conflict("email already registered")
+	}
+	return u, nil
+}
+
+// Login answers 401 for an unknown email or a wrong password, with the same
+// message, so callers cannot tell which.
+func (s *Service) Login(ctx context.Context, in Credentials) (TokenOut, error) {
+	u, ok := s.users.ByEmail(ctx, in.Email)
+	if !ok || !CheckPassword(u.PasswordHash, in.Password) {
+		return TokenOut{}, errs.Unauthorized("wrong email or password")
+	}
+	token, exp, err := s.tokens.Issue(u)
+	if err != nil {
+		return TokenOut{}, err
+	}
+	return TokenOut{AccessToken: token, TokenType: "Bearer", ExpiresAt: exp}, nil
+}
+
+// Me returns the signed in user.
+func (s *Service) Me(ctx context.Context, c Claims) (User, error) {
+	u, ok := s.users.ByID(ctx, c.UserID())
+	if !ok {
+		return User{}, errs.Unauthorized("user no longer exists")
+	}
+	return u, nil
+}

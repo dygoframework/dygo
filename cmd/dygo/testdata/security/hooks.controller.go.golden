@@ -1,0 +1,33 @@
+package main
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+
+	"example.com/app/security"
+)
+
+// HooksController serves /hooks.
+type HooksController struct{}
+
+// NewHooksController is the constructor. Add dependencies as parameters.
+func NewHooksController() *HooksController {
+	return &HooksController{}
+}
+
+// Routes registers the routes.
+func (c *HooksController) Routes(r dygo.Router) {
+	r = r.Prefix("/hooks")
+	r.Get("/", dygo.HandleNoInput(c.Hello), security.Public())
+}
+
+// HooksHelloOut is the response of GET /hooks.
+type HooksHelloOut struct {
+	Message string `json:"message"`
+}
+
+// Hello answers GET /hooks.
+func (c *HooksController) Hello(context.Context) (HooksHelloOut, error) {
+	return HooksHelloOut{Message: "hello from hooks"}, nil
+}

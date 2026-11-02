@@ -1,0 +1,45 @@
+package main
+
+import (
+	"log/slog"
+
+	"{{.Framework}}"
+	"{{.Framework}}/logger"
+	"{{.Framework}}/middleware"
+	"{{.Framework}}/openapi"
+	"{{.Framework}}/validate"
+
+	"{{.Module}}/src/config"
+	"{{.Module}}/src/database"
+	"{{.Module}}/src/health"
+)
+
+// AppModule is the root module: it imports the
+// infrastructure modules and every feature module in src/modules.
+// dygo generate adds new features to Imports.
+func AppModule(cfg *config.Config, log *slog.Logger) *dygo.Module {
+	return &dygo.Module{
+		Name: "app",
+		Imports: []*dygo.Module{
+			config.Module(cfg),
+			logger.Module(log),
+			database.Module,
+			health.Module(),
+			openapi.Module(openapi.Options{Info: openapi.Info{Title: "{{.Name}}", Version: "0.1.0"}}),
+		},
+	}
+}
+
+// AppOptions are the application-wide settings (middleware, global pipes),
+// set up once for the whole app. main and the tests share them.
+func AppOptions(cfg *config.Config, log *slog.Logger) []dygo.Option {
+	return []dygo.Option{
+		dygo.WithLogger(log),
+		dygo.WithMiddleware(
+			middleware.RequestID(),
+			middleware.Logger(log),
+			middleware.SecureHeaders(middleware.SecureHeadersOptions{}),
+		),
+		validate.Use(validate.Methods()),
+	}
+}

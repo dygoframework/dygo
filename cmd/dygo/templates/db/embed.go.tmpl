@@ -1,0 +1,15 @@
+// Package migrations holds the SQL migrations, embedded in the binary so
+// production needs nothing else. Add one with
+//
+//	dygo g migration create_users
+//
+// and apply them with dygo db migrate (go run . db:migrate), or
+// ./{{.Name}} db:migrate on a server. dygo db status lists them.
+package migrations
+
+import "embed"
+
+// FS holds the NNNN_name.up.sql and NNNN_name.down.sql files.
+//
+//go:embed *
+var FS embed.FS

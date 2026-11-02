@@ -1,0 +1,13 @@
+type User {
+  id: ID!
+  name: String!
+}
+
+type Query {
+  user(id: ID!): User
+  me: User!
+}
+
+type Mutation {
+  deleteUser(id: ID!): Boolean!
+}

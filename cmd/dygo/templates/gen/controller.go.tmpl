@@ -1,0 +1,35 @@
+package {{.Package}}
+
+import (
+	"context"
+
+	"{{.Framework}}"
+{{- if and .Sec .Sec.Public}}
+
+	"{{.Sec.ImportPath}}"
+{{- end}}
+)
+
+// {{.P}}Controller serves /{{.Kebab}}.
+type {{.P}}Controller struct{}
+
+// New{{.P}}Controller is the constructor. Add dependencies as parameters.
+func New{{.P}}Controller() *{{.P}}Controller {
+	return &{{.P}}Controller{}
+}
+
+// Routes registers the routes.
+func (c *{{.P}}Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/{{.Kebab}}")
+	r.Get("/", dygo.HandleNoInput(c.Hello){{if and .Sec .Sec.Public}}, {{.Sec.Pkg}}.Public(){{end}})
+}
+
+// {{.P}}HelloOut is the response of GET /{{.Kebab}}.
+type {{.P}}HelloOut struct {
+	Message string `json:"message"`
+}
+
+// Hello answers GET /{{.Kebab}}.
+func (c *{{.P}}Controller) Hello(context.Context) ({{.P}}HelloOut, error) {
+	return {{.P}}HelloOut{Message: "hello from {{.Kebab}}"}, nil
+}

@@ -1,0 +1,107 @@
+package orderitems
+
+import (
+	"context"
+	"strings"
+
+	"github.com/dygoframework/dygo/validate"
+
+	"net/mail"
+
+	"time"
+)
+
+// OrderItem is the stored entity and the response body.
+type OrderItem struct {
+	ID      int       `json:"id" db:"id,pk,auto"`
+	Name    string    `json:"name"`
+	Qty     int       `json:"qty"`
+	Note    string    `json:"note,omitempty"`
+	Contact string    `json:"contact"`
+	Due     time.Time `json:"due"`
+}
+
+// CreateOrderItem is the body of POST /order-items.
+type CreateOrderItem struct {
+	Name    string    `json:"name" example:"name 1"`
+	Qty     int       `json:"qty" example:"1"`
+	Note    string    `json:"note,omitempty" example:"note 1"`
+	Contact string    `json:"contact" example:"ada@example.com"`
+	Due     time.Time `json:"due"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *CreateOrderItem) Validate(context.Context) error {
+	var v validate.Errors
+	if strings.TrimSpace(b.Name) == "" {
+		v.Add("body", "name", "must not be empty")
+	}
+	if !isEmail(b.Contact) {
+		v.Add("body", "contact", "must be an email address")
+	}
+	if b.Due.IsZero() {
+		v.Add("body", "due", "is required")
+	}
+	return v.Err()
+}
+
+// Entity returns the new OrderItem with the given ID.
+func (b *CreateOrderItem) Entity(id int) OrderItem {
+	return OrderItem{
+		ID:      id,
+		Name:    b.Name,
+		Qty:     b.Qty,
+		Note:    b.Note,
+		Contact: b.Contact,
+		Due:     b.Due,
+	}
+}
+
+// UpdateOrderItem is the body of PATCH /order-items/{id}. Missing fields are
+// left unchanged.
+type UpdateOrderItem struct {
+	Name    *string    `json:"name,omitempty"`
+	Qty     *int       `json:"qty,omitempty"`
+	Note    *string    `json:"note,omitempty"`
+	Contact *string    `json:"contact,omitempty"`
+	Due     *time.Time `json:"due,omitempty"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *UpdateOrderItem) Validate(context.Context) error {
+	var v validate.Errors
+	if b.Name != nil && strings.TrimSpace(*b.Name) == "" {
+		v.Add("body", "name", "must not be empty")
+	}
+	if b.Contact != nil && !isEmail(*b.Contact) {
+		v.Add("body", "contact", "must be an email address")
+	}
+	if b.Due != nil && b.Due.IsZero() {
+		v.Add("body", "due", "must not be zero")
+	}
+	return v.Err()
+}
+
+// Apply copies the fields that were sent to e.
+func (b *UpdateOrderItem) Apply(e *OrderItem) {
+	if b.Name != nil {
+		e.Name = *b.Name
+	}
+	if b.Qty != nil {
+		e.Qty = *b.Qty
+	}
+	if b.Note != nil {
+		e.Note = *b.Note
+	}
+	if b.Contact != nil {
+		e.Contact = *b.Contact
+	}
+	if b.Due != nil {
+		e.Due = *b.Due
+	}
+}
+
+func isEmail(s string) bool {
+	a, err := mail.ParseAddress(s)
+	return err == nil && a.Address == s
+}

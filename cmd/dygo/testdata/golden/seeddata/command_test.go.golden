@@ -1,0 +1,12 @@
+package seeddata
+
+import (
+	"context"
+	"testing"
+)
+
+func TestCommand(t *testing.T) {
+	if err := NewCommand().Run(context.Background(), nil); err != nil {
+		t.Fatal(err)
+	}
+}

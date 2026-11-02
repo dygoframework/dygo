@@ -1,0 +1,16 @@
+/.bin/
+# Build outputs of `go build` and `go test -c` at the root.
+/dygo
+/dygo.test
+*.test
+coverage.out
+# make bench-diff: the run compared with the saved baseline.
+/.bench-new.txt
+# Docs site build output and the pages `make docs` copies in.
+/site/
+/docs/changelog.md
+/docs/security.md
+/docs/benchmarks.md
+/bin/
+.DS_Store
+HISTORY*

@@ -1,0 +1,29 @@
+package main
+
+import (
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/middleware"
+	"github.com/dygoframework/dygo/sql"
+
+	"example.com/app/security"
+)
+
+// AppModule is the root module.
+func AppModule() *dygo.Module {
+	return &dygo.Module{
+		Name:        "app",
+		Imports:     []*dygo.Module{security.Module, sql.Module(nil), ProductsModule, PostsModule},
+		Controllers: []dygo.Provider{dygo.Provide(NewBillingController), dygo.Provide(NewHooksController)},
+	}
+}
+
+// Options are the application options.
+func Options() []dygo.Option {
+	return []dygo.Option{
+		dygo.WithMiddleware(
+			middleware.SecureHeaders(middleware.SecureHeadersOptions{}),
+			security.CORS(),
+			middleware.RequestID(),
+		),
+	}
+}

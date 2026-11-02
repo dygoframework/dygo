@@ -1,0 +1,162 @@
+// Package securitytest signs in as a user in tests, without a real identity
+// provider: it runs a small fake provider with its own RSA key, and points
+// the app at it.
+//
+//	securitytest.Setup(t)
+//	srv := dygotest.New(app).CompileHTTP(t)
+//	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+//	srv.DELETE("/orders/1").With(securitytest.Admin()).Do(t).Status(t, 204)
+package securitytest
+
+import (
+	"context"
+	"crypto"
+	"crypto/rand"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"math/big"
+	"net/http"
+	"net/http/httptest"
+	"strconv"
+	"strings"
+	"sync"
+	"testing"
+	"time"
+
+	"example.com/app/security"
+)
+
+// Audience is the OAUTH_AUDIENCE that Setup gives the app under test.
+const Audience = "test-api"
+
+// Issuer is a fake identity provider: a discovery document and a key set.
+type Issuer struct {
+	URL string
+
+	mu  sync.Mutex
+	key *rsa.PrivateKey
+	kid string
+	n   int
+
+	fetches int
+}
+
+var (
+	issuer     *Issuer
+	issuerOnce sync.Once
+)
+
+// Provider returns the fake provider, started on first use. It runs until
+// the test binary exits.
+func Provider() *Issuer {
+	issuerOnce.Do(func() {
+		issuer = &Issuer{}
+		issuer.RotateKey()
+		mux := http.NewServeMux()
+		srv := httptest.NewServer(mux)
+		issuer.URL = srv.URL
+		mux.HandleFunc("GET /.well-known/openid-configuration", func(w http.ResponseWriter, _ *http.Request) {
+			_ = json.NewEncoder(w).Encode(map[string]string{"issuer": srv.URL, "jwks_uri": srv.URL + "/keys"})
+		})
+		mux.HandleFunc("GET /keys", func(w http.ResponseWriter, _ *http.Request) {
+			issuer.mu.Lock()
+			defer issuer.mu.Unlock()
+			issuer.fetches++
+			b := base64.RawURLEncoding
+			_ = json.NewEncoder(w).Encode(map[string]any{"keys": []map[string]string{{
+				"kty": "RSA", "use": "sig", "alg": "RS256", "kid": issuer.kid,
+				"n": b.EncodeToString(issuer.key.N.Bytes()),
+				"e": b.EncodeToString(big.NewInt(int64(issuer.key.E)).Bytes()),
+			}}})
+		})
+	})
+	return issuer
+}
+
+// KeyFetches returns how often the app fetched the key set, to check that
+// tokens with made up key IDs do not make it fetch on every request.
+func (i *Issuer) KeyFetches() int {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	return i.fetches
+}
+
+// RotateKey makes the provider sign with a new key, as providers do from
+// time to time. Tokens signed before keep their old key ID.
+func (i *Issuer) RotateKey() {
+	key, err := rsa.GenerateKey(rand.Reader, 2048)
+	if err != nil {
+		panic(err)
+	}
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	i.n++
+	i.key, i.kid = key, "test-key-"+strconv.Itoa(i.n)
+}
+
+// Sign returns an RS256 token with claims, signed with the current key.
+func (i *Issuer) Sign(claims map[string]any) string {
+	i.mu.Lock()
+	defer i.mu.Unlock()
+	b := base64.RawURLEncoding
+	header, _ := json.Marshal(map[string]string{"alg": "RS256", "typ": "JWT", "kid": i.kid})
+	payload, err := json.Marshal(claims)
+	if err != nil {
+		panic(err)
+	}
+	signed := b.EncodeToString(header) + "." + b.EncodeToString(payload)
+	sum := sha256.Sum256([]byte(signed))
+	sig, err := rsa.SignPKCS1v15(rand.Reader, i.key, crypto.SHA256, sum[:])
+	if err != nil {
+		panic(err)
+	}
+	return signed + "." + b.EncodeToString(sig)
+}
+
+// Claims returns the claims of a valid token for p, valid for an hour.
+func (i *Issuer) Claims(p security.Principal) map[string]any {
+	now := time.Now()
+	c := map[string]any{
+		"iss": i.URL, "aud": Audience, "sub": p.Subject, "email": p.Email,
+		"roles": p.Roles, "iat": now.Unix(), "exp": now.Add(time.Hour).Unix(),
+	}
+	if len(p.Authorities) > 0 {
+		c["scope"] = strings.Join(p.Authorities, " ")
+	}
+	return c
+}
+
+// Setup makes the app under test trust the fake provider. Call it before
+// building the app.
+func Setup(t testing.TB) {
+	t.Setenv("OAUTH_ISSUER_URL", Provider().URL)
+	t.Setenv("OAUTH_AUDIENCE", Audience)
+	t.Setenv("OAUTH_ROLES_CLAIM", "roles")
+}
+
+// User signs in as subject with roles. Pass it to dygotest's Req.With.
+func User(subject string, roles ...string) func(*http.Request) {
+	return As(security.Principal{Subject: subject, Email: subject + "@example.com", Roles: roles})
+}
+
+// Admin signs in as user "1" with the admin role.
+func Admin() func(*http.Request) { return User("1", "admin") }
+
+// As signs in as p; p.Authorities become the token's scopes.
+func As(p security.Principal) func(*http.Request) {
+	return func(r *http.Request) { r.Header.Set("Authorization", "Bearer "+Token(p)) }
+}
+
+// Token returns a token for p from the fake provider, valid for an hour.
+func Token(p security.Principal) string {
+	i := Provider()
+	return i.Sign(i.Claims(p))
+}
+
+// Context returns ctx signed in as p, for testing services that call
+// security.Require or security.CurrentUser.
+func Context(ctx context.Context, p security.Principal) context.Context {
+	return security.WithPrincipal(ctx, p)
+}

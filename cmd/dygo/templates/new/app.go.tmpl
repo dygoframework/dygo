@@ -1,0 +1,43 @@
+package main
+
+import (
+	"log/slog"
+
+	"{{.Framework}}"
+	"{{.Framework}}/health"
+	"{{.Framework}}/logger"
+	"{{.Framework}}/middleware"
+	"{{.Framework}}/openapi"
+	"{{.Framework}}/sql"
+	"{{.Framework}}/validate"
+)
+
+// AppModule is the root module. dygo generate adds feature modules to its
+// Imports.
+func AppModule(cfg *Config, log *slog.Logger) *dygo.Module {
+	return &dygo.Module{
+		Name: "app",
+		Imports: []*dygo.Module{
+			logger.Module(log),
+			sql.Module(nil), // the database in DATABASE_URL (.env); dygo db init adds the driver
+			health.Module(health.Options{}),
+			openapi.Module(openapi.Options{Info: openapi.Info{Title: "{{.Name}}", Version: "0.1.0"}}),
+		},
+		Providers:   []dygo.Provider{dygo.Value(cfg)},
+		Controllers: []dygo.Provider{dygo.Provide(NewAppController)},
+		Exports:     []dygo.Token{dygo.TypeOf[*Config]()},
+	}
+}
+
+// Options are the application options, shared by main and the tests.
+func Options(cfg *Config, log *slog.Logger) []dygo.Option {
+	return []dygo.Option{
+		dygo.WithLogger(log),
+		dygo.WithMiddleware(
+			middleware.RequestID(),
+			middleware.Logger(log),
+			middleware.SecureHeaders(middleware.SecureHeadersOptions{}),
+		),
+		validate.Use(validate.Methods()),
+	}
+}

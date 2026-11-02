@@ -1,0 +1,15 @@
+package auth
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+)
+
+func TestService(t *testing.T) {
+	app := dygotest.Module([]dygo.Provider{dygo.Provide(NewService)}).Compile(t)
+	if _, err := dygo.Get[*Service](app); err != nil {
+		t.Fatal(err)
+	}
+}

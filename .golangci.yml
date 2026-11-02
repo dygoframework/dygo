@@ -1,0 +1,52 @@
+# golangci-lint v2 config, used by `make lint` for the root module and every
+# sub-module (they pass --config pointing here). It keeps to linters that find
+# bugs; the code base's own style (British spelling in comments, explicit
+# struct literals, 0644 files written by the CLI) is not linted.
+version: "2"
+
+run:
+  go: "1.27"
+  tests: true
+
+linters:
+  default: standard # errcheck, govet, ineffassign, staticcheck, unused
+  enable:
+    - bodyclose
+    - gosec # OWASP checks: injection, weak crypto, file and command use (docs/owasp.md)
+    - misspell # real misspellings only: no locale is set
+    - unconvert
+  settings:
+    gosec:
+      excludes:
+        - G104 # unchecked errors: errcheck already reports them
+    staticcheck:
+      checks:
+        - all
+        - -ST1000 # package comments: revive is not used, doc.go files cover it
+        - -ST1003 # naming: initialisms follow the code base's own rules
+        - -S1016 # explicit struct literals are clearer than conversions
+  exclusions:
+    generated: lax
+    presets:
+      - comments
+      - std-error-handling
+    paths:
+      - testdata
+    rules:
+      # websocket.Dial and httptest helpers return responses with nothing to close.
+      - path: _test\.go
+        linters: [bodyclose]
+      # Tests use fixed secrets, temp files and subprocesses on purpose.
+      - path: _test\.go
+        linters: [gosec]
+      # The CLI reads and writes the user's project files and runs the go
+      # tool and database clients there; those paths and commands come from
+      # the developer at the terminal, not from a network request.
+      - path: cmd/dygo/
+        linters: [gosec]
+        text: "G(101|122|204|301|304|306|702|703)"
+
+formatters:
+  enable:
+    - gofmt
+    - goimports

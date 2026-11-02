@@ -1,0 +1,7 @@
+package main
+
+// Config is the typed configuration, read from the environment and .env files
+// by package config. Add fields with env, default and required tags.
+type Config struct {
+	Port int `env:"PORT" default:"9900"`
+}

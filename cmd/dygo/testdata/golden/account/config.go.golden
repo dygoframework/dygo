@@ -1,0 +1,10 @@
+package account
+
+import "time"
+
+// Config is read from the environment and .env.
+type Config struct {
+	Secret   string        `env:"AUTH_SECRET"`                  // signs the access tokens; at least 32 characters
+	TokenTTL time.Duration `env:"AUTH_TOKEN_TTL" default:"24h"` // how long a token is valid
+	AppEnv   string        `env:"APP_ENV" default:"development"`
+}

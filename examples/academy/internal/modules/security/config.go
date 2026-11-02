@@ -1,0 +1,35 @@
+package security
+
+import (
+	"strings"
+	"time"
+)
+
+// Config is read from the environment and .env.
+type Config struct {
+	Secret      string        `env:"AUTH_SECRET"`                     // signs the access tokens; at least 32 characters
+	TokenTTL    time.Duration `env:"AUTH_TOKEN_TTL" default:"15m"`    // how long an access token is valid
+	RefreshTTL  time.Duration `env:"AUTH_REFRESH_TTL" default:"720h"` // how long a login lasts without use of its refresh token
+	Issuer      string        `env:"AUTH_ISSUER" default:"dygo"`      // the "iss" of the tokens this app issues and accepts
+	CORSOrigins string        `env:"CORS_ALLOWED_ORIGINS"`            // browser origins allowed to call the API, comma separated
+	AppEnv      string        `env:"APP_ENV" default:"development"`
+
+	// AdminEmail and AdminPassword, when set, create an admin at startup
+	// (admin.go), so someone can publish the first course.
+	AdminEmail    string `env:"AUTH_ADMIN_EMAIL"`
+	AdminPassword string `env:"AUTH_ADMIN_PASSWORD"`
+}
+
+// Production reports whether APP_ENV is production.
+func (c *Config) Production() bool { return c.AppEnv == "production" }
+
+// Origins returns CORSOrigins as a list.
+func (c *Config) Origins() []string {
+	var out []string
+	for _, o := range strings.Split(c.CORSOrigins, ",") {
+		if o = strings.TrimSpace(o); o != "" {
+			out = append(out, o)
+		}
+	}
+	return out
+}

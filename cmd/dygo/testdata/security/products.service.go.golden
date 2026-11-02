@@ -1,0 +1,63 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/dygoframework/dygo/errs"
+	"github.com/dygoframework/dygo/sql"
+)
+
+// ProductsService stores products in the database set by DATABASE_URL in
+// .env: memory:// keeps them in memory, a Postgres or MySQL URL in that
+// database (create the table with dygo g migration and dygo db migrate).
+type ProductsService struct {
+	repo *sql.Repository[Product]
+}
+
+// NewProductsService is the constructor.
+func NewProductsService(repo *sql.Repository[Product]) *ProductsService {
+	return &ProductsService{repo: repo}
+}
+
+// List returns every Product by ID.
+func (s *ProductsService) List(ctx context.Context) ([]Product, error) {
+	return s.repo.List(ctx, sql.OrderBy("id"))
+}
+
+// Get returns one Product, or a 404 error.
+func (s *ProductsService) Get(ctx context.Context, id int) (Product, error) {
+	product, err := s.repo.Find(ctx, id)
+	return product, productsNotFound(id, err)
+}
+
+// Create stores a new Product.
+func (s *ProductsService) Create(ctx context.Context, in CreateProduct) (Product, error) {
+	product := in.Entity(0)
+	err := s.repo.Create(ctx, &product)
+	return product, err
+}
+
+// Update changes the fields set in in.
+func (s *ProductsService) Update(ctx context.Context, id int, in UpdateProduct) (Product, error) {
+	product, err := s.Get(ctx, id)
+	if err != nil {
+		return Product{}, err
+	}
+	in.Apply(&product)
+	return product, productsNotFound(id, s.repo.Update(ctx, &product))
+}
+
+// Delete removes the Product with id.
+func (s *ProductsService) Delete(ctx context.Context, id int) error {
+	return productsNotFound(id, s.repo.Delete(ctx, id))
+}
+
+// productsNotFound names the Product in a not found error.
+func productsNotFound(id int, err error) error {
+	if errors.Is(err, sql.ErrNotFound) {
+		return errs.NotFound(fmt.Sprintf("Product %d not found", id))
+	}
+	return err
+}

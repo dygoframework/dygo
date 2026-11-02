@@ -1,0 +1,30 @@
+package usersrpc
+
+import (
+	"context"
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/micro"
+)
+
+func TestHandlers(t *testing.T) {
+	ctx := context.Background()
+	app, err := dygo.CreateApplicationContext(ctx, &dygo.Module{
+		Name:      "test",
+		Providers: []dygo.Provider{dygo.Provide(NewHandlers)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	local := micro.NewLocal(micro.ServerOptions{})
+	app.ConnectMicroservice(local)
+	if err := app.StartAllMicroservices(ctx); err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close(ctx)
+	out, err := micro.Send[GetOut](ctx, micro.NewClient(local), "users-rpc.get", GetIn{ID: "1"})
+	if err != nil || out.ID != "1" {
+		t.Fatalf("got %+v, %v", out, err)
+	}
+}

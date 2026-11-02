@@ -1,0 +1,58 @@
+package main
+
+import (
+	"context"
+	"strings"
+
+	"github.com/dygoframework/dygo/validate"
+)
+
+// Product is the stored entity and the response body.
+type Product struct {
+	ID   int    `json:"id" db:"id,pk,auto"`
+	Name string `json:"name"`
+}
+
+// CreateProduct is the body of POST /products.
+type CreateProduct struct {
+	Name string `json:"name" example:"name 1"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *CreateProduct) Validate(context.Context) error {
+	var v validate.Errors
+	if strings.TrimSpace(b.Name) == "" {
+		v.Add("body", "name", "must not be empty")
+	}
+	return v.Err()
+}
+
+// Entity returns the new Product with the given ID.
+func (b *CreateProduct) Entity(id int) Product {
+	return Product{
+		ID:   id,
+		Name: b.Name,
+	}
+}
+
+// UpdateProduct is the body of PATCH /products/{id}. Missing fields are
+// left unchanged.
+type UpdateProduct struct {
+	Name *string `json:"name,omitempty"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *UpdateProduct) Validate(context.Context) error {
+	var v validate.Errors
+	if b.Name != nil && strings.TrimSpace(*b.Name) == "" {
+		v.Add("body", "name", "must not be empty")
+	}
+	return v.Err()
+}
+
+// Apply copies the fields that were sent to e.
+func (b *UpdateProduct) Apply(e *Product) {
+	if b.Name != nil {
+		e.Name = *b.Name
+	}
+}

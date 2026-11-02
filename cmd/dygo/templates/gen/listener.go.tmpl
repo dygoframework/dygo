@@ -1,0 +1,35 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"log/slog"
+
+	"{{.Framework}}/events"
+)
+
+// Event is an example event. Emit it from a service that injects
+// *events.Emitter: emitter.Emit(ctx, {{.Pkg}}.Event{ID: id}).
+type Event struct {
+	ID string
+}
+
+// Listener handles events. Every provider with an Events method is found by
+// events.Module at startup.
+type Listener struct{}
+
+// NewListener is the constructor; add the services the listener needs as
+// parameters.
+func NewListener() *Listener {
+	return &Listener{}
+}
+
+// Events subscribes the handlers. Add events.Async() to run one in the
+// background.
+func (l *Listener) Events(r *events.Registry) {
+	events.On(r, l.onEvent)
+}
+
+func (l *Listener) onEvent(ctx context.Context, e Event) error {
+	slog.InfoContext(ctx, "{{.Kebab}}: event", "id", e.ID)
+	return nil
+}

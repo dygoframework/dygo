@@ -1,0 +1,40 @@
+// Command {{.Name}} is a Dygo application.
+//
+//	go run .            # or: dygo start -watch
+//	go run . help       # list the console commands
+//	open http://localhost:9900/docs
+package main
+
+import (
+	"context"
+	"fmt"
+	"os"
+	"strconv"
+
+	"{{.Framework}}"
+	"{{.Framework}}/console"
+	"{{.Framework}}/config"
+	"{{.Framework}}/logger"
+)
+
+func main() {
+	log := logger.New(logger.Options{}) // JSON when APP_ENV=production, level from LOG_LEVEL
+	cfg, err := config.Load[Config](config.Files(".env.local", ".env"))
+	if err != nil {
+		log.Error("bad configuration", "err", err)
+		os.Exit(1)
+	}
+	ctx := context.Background()
+	if len(os.Args) > 1 { // go run . <command>: a console command (dygo g command)
+		os.Exit(console.Main(ctx, AppModule(cfg, log), os.Args[1:], dygo.WithLogger(log)))
+	}
+	app, err := dygo.Create(ctx, AppModule(cfg, log), Options(cfg, log)...)
+	if err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+	if err := app.Listen(ctx, ":"+strconv.Itoa(cfg.Port)); err != nil {
+		fmt.Fprintln(os.Stderr, err)
+		os.Exit(1)
+	}
+}

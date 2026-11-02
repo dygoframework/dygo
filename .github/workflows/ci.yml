@@ -1,0 +1,104 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        go: ["1.27.x", "stable"]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: ${{ matrix.go }}
+      - run: make vet
+      - run: make test-unit
+      - run: make check
+      - run: make bench-smoke # every benchmark once: they build and run, not timed
+
+  # All tests, integration included, against real services: two Postgres and
+  # two MySQL versions, and Redis. compose.test.yml starts the same locally.
+  integration:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { postgres: "16", mysql: "8.0" }
+          - { postgres: "17", mysql: "8.4" }
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:${{ matrix.postgres }}
+        env:
+          POSTGRES_PASSWORD: dygo
+          POSTGRES_DB: dygo
+        ports: ["5432:5432"]
+        options: >-
+          --health-cmd "pg_isready -U postgres" --health-interval 2s --health-timeout 5s --health-retries 30
+      mysql:
+        image: mysql:${{ matrix.mysql }}
+        env:
+          MYSQL_ROOT_PASSWORD: dygo
+          MYSQL_DATABASE: dygo
+        ports: ["3306:3306"]
+        options: >-
+          --health-cmd "mysqladmin ping -h 127.0.0.1 -pdygo" --health-interval 2s --health-timeout 5s --health-retries 30
+      redis:
+        image: redis:7
+        ports: ["6379:6379"]
+        options: >-
+          --health-cmd "redis-cli ping" --health-interval 2s --health-timeout 5s --health-retries 30
+    env:
+      DYGO_TEST_POSTGRES_URL: postgres://postgres:dygo@localhost:5432/dygo?sslmode=disable
+      DYGO_TEST_MYSQL_URL: mysql://root:dygo@127.0.0.1:3306/dygo
+      DYGO_TEST_REDIS_ADDR: 127.0.0.1:6379
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      - run: make test
+
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable
+      - run: make lint
+
+  # OWASP Top 10 checks (docs/owasp.md): a change that breaks one fails here.
+  owasp:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version: stable # govulncheck checks the stdlib of the Go that runs it
+      - name: Static analysis (gosec) # A02 A03 A05 A10
+        run: make gosec
+      - name: Known vulnerabilities (govulncheck) # A06
+        run: make vulncheck
+      - name: Security tests # A01 A02 A03 A04 A05 A07 A08 A09 A10
+        run: make test-owasp
+      - name: Fuzz the input binder and SQL compiler # A03
+        run: make fuzz FUZZTIME=20s
+
+  docs:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
+        with:
+          python-version: "3.12"
+      - run: pip install "mkdocs-material==9.6.*"
+      - run: make docs

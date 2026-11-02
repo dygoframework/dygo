@@ -1,0 +1,130 @@
+package security
+
+import (
+	"context"
+	"log/slog"
+	"strconv"
+	"sync"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/errs"
+)
+
+// Service registers users and logs them in.
+type Service struct {
+	users   UserStore
+	tokens  *Tokens
+	refresh *RefreshTokens
+	log     *slog.Logger
+}
+
+// NewService is the constructor.
+func NewService(users UserStore, tokens *Tokens, refresh *RefreshTokens, log dygo.Optional[*slog.Logger]) *Service {
+	return &Service{users: users, tokens: tokens, refresh: refresh, log: log.OrElse(slog.Default())}
+}
+
+// Register creates a user with the "user" role, or answers 409 when the
+// email is taken.
+func (s *Service) Register(ctx context.Context, in Credentials) (User, error) {
+	hash, err := HashPassword(in.Password)
+	if err != nil {
+		return User{}, err
+	}
+	u, ok, err := s.users.Create(ctx, User{Email: in.Email, Roles: []string{"user"}, PasswordHash: hash})
+	if err != nil {
+		return User{}, err
+	}
+	if !ok {
+		return User{}, errs.Conflict("email already registered")
+	}
+	return u, nil
+}
+
+// Login answers 401 for an unknown email or a wrong password, with the same
+// message and about the same time, so callers cannot tell which emails exist.
+func (s *Service) Login(ctx context.Context, in Credentials) (TokenOut, error) {
+	u, found, err := s.users.ByEmail(ctx, in.Email)
+	if err != nil {
+		return TokenOut{}, err
+	}
+	hash := u.PasswordHash
+	if !found {
+		hash = dummyHash()
+	}
+	if !CheckPassword(hash, in.Password) || !found {
+		// Failed logins are logged, so a brute force attack can be seen; the password never is.
+		s.log.InfoContext(ctx, "login failed", "email", in.Email)
+		return TokenOut{}, errs.Unauthorized("wrong email or password")
+	}
+	if NeedsRehash(u.PasswordHash) {
+		if hash, err := HashPassword(in.Password); err == nil {
+			_ = s.users.SetPasswordHash(ctx, u.ID, hash) // best effort: the old hash still works
+		}
+	}
+	refresh, err := s.refresh.Issue(ctx, u.ID)
+	if err != nil {
+		return TokenOut{}, err
+	}
+	return s.pair(u, refresh)
+}
+
+// Refresh spends a refresh token and returns a new access token and refresh
+// token. The user is loaded again, so changed roles apply and a deleted
+// user cannot refresh.
+func (s *Service) Refresh(ctx context.Context, in RefreshBody) (TokenOut, error) {
+	id, refresh, err := s.refresh.Rotate(ctx, in.RefreshToken)
+	if err != nil {
+		return TokenOut{}, err
+	}
+	u, ok, err := s.users.ByID(ctx, id)
+	if err != nil {
+		return TokenOut{}, err
+	}
+	if !ok {
+		return TokenOut{}, errRefresh
+	}
+	return s.pair(u, refresh)
+}
+
+// Logout ends the login of a refresh token. Its access tokens stay valid
+// until they expire (AUTH_TOKEN_TTL), so keep that short.
+func (s *Service) Logout(ctx context.Context, in RefreshBody) error {
+	return s.refresh.Revoke(ctx, in.RefreshToken)
+}
+
+func (s *Service) pair(u User, refresh string) (TokenOut, error) {
+	token, exp, err := s.tokens.Issue(PrincipalOf(u))
+	if err != nil {
+		return TokenOut{}, err
+	}
+	return TokenOut{AccessToken: token, TokenType: "Bearer", ExpiresAt: exp, RefreshToken: refresh}, nil
+}
+
+// Me returns the signed in user.
+func (s *Service) Me(ctx context.Context) (User, error) {
+	p, ok := CurrentUser(ctx)
+	if !ok {
+		return User{}, errUnauthenticated
+	}
+	id, _ := strconv.Atoi(p.Subject)
+	u, ok, err := s.users.ByID(ctx, id)
+	if err != nil {
+		return User{}, err
+	}
+	if !ok {
+		return User{}, errs.Unauthorized("user no longer exists")
+	}
+	return u, nil
+}
+
+// PrincipalOf is what an access token says about u.
+func PrincipalOf(u User) Principal {
+	return Principal{Subject: strconv.Itoa(u.ID), Email: u.Email, Roles: u.Roles}
+}
+
+// dummyHash is checked against when the email is unknown, so a login takes
+// as long as for a real user.
+var dummyHash = sync.OnceValue(func() string {
+	h, _ := HashPassword("not a real password")
+	return h
+})

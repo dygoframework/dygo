@@ -1,0 +1,12 @@
+package reports
+
+import (
+	"context"
+	"testing"
+)
+
+func TestJobsRun(t *testing.T) {
+	if err := NewJobs().run(context.Background()); err != nil {
+		t.Fatal(err)
+	}
+}

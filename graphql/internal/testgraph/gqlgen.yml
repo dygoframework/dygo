@@ -1,0 +1,13 @@
+schema:
+  - schema.graphqls
+exec:
+  filename: generated.go
+  package: testgraph
+model:
+  filename: models_gen.go
+  package: testgraph
+resolver:
+  layout: single-file
+  filename: resolver.go
+  package: testgraph
+  type: Resolver

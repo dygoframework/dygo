@@ -1,0 +1,34 @@
+package {{.Package}}
+
+import (
+	"testing"
+{{if .UsesSQL}}
+	"{{.Framework}}"{{end}}
+	"{{.Framework}}/dygotest"
+{{- if .UsesSQL}}
+	"{{.Framework}}/sql"{{end}}
+	"{{.Framework}}/validate"
+)
+
+// TestRoutes was written by dygo generate test from the routes of this
+// package: GET routes without parameters are checked, the others are skipped
+// until you fill in a request. If the module needs others (config, auth),
+// import them around it: dygotest.New(&dygo.Module{Imports: ...}).
+func Test{{.P}}Routes(t *testing.T) {
+{{- if .UsesSQL}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.P}}Module}}
+	srv := dygotest.New(app).With
+{{- else}}
+	srv := dygotest.New({{.P}}Module).With
+{{- end}}(validate.Use(validate.Methods())).CompileHTTP(t)
+{{range .Routes}}
+	t.Run("{{.Method}} {{.Path}}", func(t *testing.T) {
+{{- if .Ready}}
+		srv.NewRequest("{{.Method}}", "{{.Path}}").Do(t).Status(t, {{.Status}})
+{{- else}}
+		t.Skip("TODO: {{.Todo}}")
+		srv.NewRequest("{{.Method}}", "{{.SamplePath}}"){{if .Body}}.JSON(map[string]any{}){{end}}.Do(t).Status(t, {{.Status}})
+{{- end}}
+	})
+{{- end}}
+}

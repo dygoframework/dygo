@@ -1,0 +1,23 @@
+// Package health wires the health checks: GET /health/live and
+// GET /health/ready, which pings the database.
+package health
+
+import (
+	"github.com/dygoframework/dygo"
+	dygohealth "github.com/dygoframework/dygo/health"
+
+	"github.com/dygoframework/dygo/examples/academy/internal/database"
+)
+
+// Module serves the health endpoints and registers the indicators. Add an
+// indicator for every dependency the app needs to serve traffic.
+func Module() *dygo.Module {
+	return &dygo.Module{
+		Name:    "health-checks",
+		Imports: []*dygo.Module{dygohealth.Module(dygohealth.Options{})},
+		Providers: []dygo.Provider{
+			dygo.Provide(func(db *database.DB) dygohealth.Indicator { return dygohealth.Ping("database", db) },
+				dygo.Group(dygohealth.Indicators)),
+		},
+	}
+}

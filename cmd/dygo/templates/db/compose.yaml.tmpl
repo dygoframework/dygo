@@ -1,0 +1,40 @@
+# Local database for development: docker compose up -d
+services:
+{{- if eq .Driver "postgres"}}
+  postgres:
+    image: postgres:17
+    environment:
+      POSTGRES_USER: {{.DB.User}}
+      POSTGRES_PASSWORD: {{.DB.Password}}
+      POSTGRES_DB: {{.DB.Name}}
+    ports:
+      - "{{.DB.Port}}:5432"
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U {{.DB.User}} -d {{.DB.Name}}"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  postgres-data:
+{{- else}}
+  mysql:
+    image: mysql:8.4
+    environment:
+      MYSQL_ROOT_PASSWORD: {{.DB.Password}}
+      MYSQL_USER: {{.DB.User}}
+      MYSQL_PASSWORD: {{.DB.Password}}
+      MYSQL_DATABASE: {{.DB.Name}}
+    ports:
+      - "{{.DB.Port}}:3306"
+    volumes:
+      - mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "127.0.0.1", "-p{{.DB.Password}}"]
+      interval: 2s
+      retries: 30
+
+volumes:
+  mysql-data:
+{{- end}}

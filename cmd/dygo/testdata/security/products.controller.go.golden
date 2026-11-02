@@ -1,0 +1,70 @@
+package main
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+
+	"example.com/app/security"
+)
+
+// ProductsController maps /products to the service.
+type ProductsController struct {
+	svc *ProductsService
+}
+
+// NewProductsController is the constructor.
+func NewProductsController(svc *ProductsService) *ProductsController {
+	return &ProductsController{svc: svc}
+}
+
+// Routes registers the CRUD routes.
+func (c *ProductsController) Routes(r dygo.Router) {
+	r = r.Prefix("/products")
+	r.Get("/", dygo.HandleNoInput(c.List))
+	r.Get("/{id}", dygo.Handle(c.Get))
+	r.Post("/", dygo.Handle(c.Create), security.Roles("admin"))
+	r.Patch("/{id}", dygo.Handle(c.Update), security.Roles("admin"))
+	r.Delete("/{id}", dygo.Handle(c.Delete), security.Roles("admin"))
+}
+
+// ProductsIDIn is the {id} path parameter.
+type ProductsIDIn struct {
+	ID int `path:"id"`
+}
+
+// ProductsCreateIn is the input of POST /products.
+type ProductsCreateIn struct {
+	Body CreateProduct `body:"json"`
+}
+
+// ProductsUpdateIn is the input of PATCH /products/{id}.
+type ProductsUpdateIn struct {
+	ID   int           `path:"id"`
+	Body UpdateProduct `body:"json"`
+}
+
+// List answers GET /products.
+func (c *ProductsController) List(ctx context.Context) ([]Product, error) {
+	return c.svc.List(ctx)
+}
+
+// Get answers GET /products/{id}.
+func (c *ProductsController) Get(ctx context.Context, in ProductsIDIn) (Product, error) {
+	return c.svc.Get(ctx, in.ID)
+}
+
+// Create answers POST /products with 201.
+func (c *ProductsController) Create(ctx context.Context, in ProductsCreateIn) (Product, error) {
+	return c.svc.Create(ctx, in.Body)
+}
+
+// Update answers PATCH /products/{id}.
+func (c *ProductsController) Update(ctx context.Context, in ProductsUpdateIn) (Product, error) {
+	return c.svc.Update(ctx, in.ID, in.Body)
+}
+
+// Delete answers DELETE /products/{id} with 204.
+func (c *ProductsController) Delete(ctx context.Context, in ProductsIDIn) (dygo.NoContent, error) {
+	return dygo.NoContent{}, c.svc.Delete(ctx, in.ID)
+}

@@ -1,0 +1,91 @@
+package products
+
+import (
+	"context"
+	"net/mail"
+	"strings"
+
+	"github.com/dygoframework/dygo/validate"
+)
+
+// Product is the stored entity and the response body.
+type Product struct {
+	ID    int     `json:"id" db:"id,pk,auto"`
+	Title string  `json:"title"`
+	Price float64 `json:"price"`
+	Tags  string  `json:"tags,omitempty"`
+	Owner string  `json:"owner,omitempty"`
+}
+
+// CreateProduct is the body of POST /products.
+type CreateProduct struct {
+	Title string  `json:"title" example:"title 1"`
+	Price float64 `json:"price" example:"1.5"`
+	Tags  string  `json:"tags,omitempty" example:"tags 1"`
+	Owner string  `json:"owner,omitempty" example:"ada@example.com"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *CreateProduct) Validate(context.Context) error {
+	var v validate.Errors
+	if strings.TrimSpace(b.Title) == "" {
+		v.Add("body", "title", "must not be empty")
+	}
+	if b.Owner != "" && !isEmail(b.Owner) {
+		v.Add("body", "owner", "must be an email address")
+	}
+	return v.Err()
+}
+
+// Entity returns the new Product with the given ID.
+func (b *CreateProduct) Entity(id int) Product {
+	return Product{
+		ID:    id,
+		Title: b.Title,
+		Price: b.Price,
+		Tags:  b.Tags,
+		Owner: b.Owner,
+	}
+}
+
+// UpdateProduct is the body of PATCH /products/{id}. Missing fields are
+// left unchanged.
+type UpdateProduct struct {
+	Title *string  `json:"title,omitempty"`
+	Price *float64 `json:"price,omitempty"`
+	Tags  *string  `json:"tags,omitempty"`
+	Owner *string  `json:"owner,omitempty"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *UpdateProduct) Validate(context.Context) error {
+	var v validate.Errors
+	if b.Title != nil && strings.TrimSpace(*b.Title) == "" {
+		v.Add("body", "title", "must not be empty")
+	}
+	if b.Owner != nil && *b.Owner != "" && !isEmail(*b.Owner) {
+		v.Add("body", "owner", "must be an email address")
+	}
+	return v.Err()
+}
+
+// Apply copies the fields that were sent to e.
+func (b *UpdateProduct) Apply(e *Product) {
+	if b.Title != nil {
+		e.Title = *b.Title
+	}
+	if b.Price != nil {
+		e.Price = *b.Price
+	}
+	if b.Tags != nil {
+		e.Tags = *b.Tags
+	}
+	if b.Owner != nil {
+		e.Owner = *b.Owner
+	}
+}
+
+func isEmail(s string) bool {
+	a, err := mail.ParseAddress(s)
+	return err == nil && a.Address == s
+}

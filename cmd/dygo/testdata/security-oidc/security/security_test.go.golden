@@ -1,0 +1,247 @@
+package security_test
+
+import (
+	"bytes"
+	"context"
+	"encoding/base64"
+	"fmt"
+	"log/slog"
+	"strings"
+	"testing"
+	"time"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+	"github.com/dygoframework/dygo/logger"
+	"github.com/dygoframework/dygo/validate"
+
+	"example.com/app/security"
+	"example.com/app/security/securitytest"
+)
+
+// orders is a small controller to test the rules and route options on.
+type orders struct{}
+
+func (orders) Routes(r dygo.Router) {
+	r.Get("/admin/stats", dygo.HandleNoInput(func(context.Context) (string, error) { return "stats", nil }))
+	r = r.Prefix("/orders")
+	r.Get("/", dygo.HandleNoInput(func(context.Context) (string, error) { return "list", nil }))
+	r.Get("/catalog", dygo.HandleNoInput(func(context.Context) (string, error) { return "open", nil }), security.Public())
+	r.Delete("/{id}", dygo.HandleNoInput(func(context.Context) (string, error) { return "gone", nil }), security.Roles("admin"))
+	r.Put("/{id}", dygo.HandleNoInput(func(context.Context) (string, error) { return "saved", nil }), security.Authorities("orders:write"))
+	r.Post("/{id}/cancel", dygo.HandleNoInput(cancel))
+}
+
+// cancel checks inside the handler, as a service method would.
+func cancel(ctx context.Context) (string, error) {
+	if err := security.Require(ctx, security.HasRole("user")); err != nil {
+		return "", err
+	}
+	return "cancelled", security.RequireOwner(ctx, 7)
+}
+
+// newServer builds the test app; imports adds modules such as a logger.
+func newServer(t *testing.T, imports ...*dygo.Module) *dygotest.Server {
+	securitytest.Setup(t)
+	app := &dygo.Module{
+		Name:        "app",
+		Imports:     append([]*dygo.Module{security.Module}, imports...),
+		Controllers: []dygo.Provider{dygo.Provide(func() orders { return orders{} })},
+	}
+	return dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
+}
+
+func TestDenyByDefault(t *testing.T) {
+	srv := newServer(t)
+	srv.GET("/orders").Do(t).Status(t, 401)
+	srv.GET("/orders").Header("Authorization", "Bearer nope").Do(t).Status(t, 401)
+	srv.GET("/orders").Header("Authorization", "Basic YTpi").Do(t).Status(t, 401)
+	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+	srv.GET("/orders/catalog").Do(t).Status(t, 200)
+	srv.GET("/health/live").Do(t).Status(t, 404) // public, and not part of this test app
+}
+
+func TestRolesAndAuthorities(t *testing.T) {
+	srv := newServer(t)
+	srv.DELETE("/orders/1").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.DELETE("/orders/1").With(securitytest.Admin()).Do(t).Status(t, 200)
+	srv.PUT("/orders/1").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.PUT("/orders/1").With(securitytest.As(security.Principal{Subject: "7", Authorities: []string{"orders:write"}})).Do(t).Status(t, 200)
+}
+
+func TestPathRules(t *testing.T) {
+	srv := newServer(t)
+	srv.GET("/admin/stats").Do(t).Status(t, 401)
+	srv.GET("/admin/stats").With(securitytest.User("7", "user")).Do(t).Status(t, 403)
+	srv.GET("/admin/stats").With(securitytest.Admin()).Do(t).Status(t, 200)
+}
+
+func TestRequireAndOwner(t *testing.T) {
+	srv := newServer(t)
+	srv.POST("/orders/1/cancel").With(securitytest.User("7", "user")).Do(t).Status(t, 201)
+	srv.POST("/orders/1/cancel").With(securitytest.User("8", "user")).Do(t).Status(t, 403) // not the owner
+	srv.POST("/orders/1/cancel").With(securitytest.Admin()).Do(t).Status(t, 201)           // admin includes user, and may cancel any order
+	srv.POST("/orders/1/cancel").With(securitytest.User("7")).Do(t).Status(t, 403)         // no role
+}
+
+func TestHierarchy(t *testing.T) {
+	admin := security.Principal{Subject: "1", Roles: []string{"admin"}}
+	if !admin.HasRole("user") || !admin.HasRole("admin") {
+		t.Fatal("admin should include user")
+	}
+	user := security.Principal{Subject: "2", Roles: []string{"user"}}
+	if user.HasRole("admin") {
+		t.Fatal("user must not include admin")
+	}
+	ctx := securitytest.Context(context.Background(), user)
+	if err := security.Require(ctx, security.HasAnyRole("admin", "user")); err != nil {
+		t.Fatal(err)
+	}
+	if err := security.Require(context.Background(), security.Authenticated()); err == nil {
+		t.Fatal("no user must fail")
+	}
+}
+
+// TestSecurityLog checks that denied requests, bad tokens are logged (OWASP A09), and that passwords and
+// tokens never are.
+func TestSecurityLog(t *testing.T) {
+	var buf bytes.Buffer
+	log := slog.New(slog.NewTextHandler(&buf, &slog.HandlerOptions{Level: slog.LevelDebug}))
+	srv := newServer(t, logger.Module(log))
+	token := securitytest.Token(security.Principal{Subject: "7", Roles: []string{"user"}})
+	srv.GET("/admin/stats").Header("Authorization", "Bearer "+token).Do(t).Status(t, 403)
+	srv.GET("/orders").Header("Authorization", "Bearer "+token+"x").Do(t).Status(t, 401)
+	secrets := []string{token}
+	want := []string{"access denied", "bad token"}
+
+	out := buf.String()
+	for _, w := range want {
+		if !strings.Contains(out, w) {
+			t.Errorf("the log has no %q:\n%s", w, out)
+		}
+	}
+	for _, secret := range secrets {
+		if strings.Contains(out, secret) {
+			t.Errorf("the log shows the secret %q", secret)
+		}
+	}
+}
+
+func TestProviderTokens(t *testing.T) {
+	srv := newServer(t)
+	provider := securitytest.Provider()
+	valid := func() map[string]any {
+		return provider.Claims(security.Principal{Subject: "7", Roles: []string{"user"}})
+	}
+	get := func(token string) int {
+		return srv.GET("/orders").Header("Authorization", "Bearer "+token).Do(t).StatusCode
+	}
+	if code := get(provider.Sign(valid())); code != 200 {
+		t.Fatalf("valid token: %d", code)
+	}
+	now := time.Now()
+	for name, edit := range map[string]func(map[string]any){
+		"other issuer":   func(c map[string]any) { c["iss"] = "https://evil.example.com" },
+		"other audience": func(c map[string]any) { c["aud"] = "another-api" },
+		"expired":        func(c map[string]any) { c["exp"] = now.Add(-time.Hour).Unix() },
+		"no expiry":      func(c map[string]any) { delete(c, "exp") },
+		"not valid yet":  func(c map[string]any) { c["nbf"] = now.Add(time.Hour).Unix() },
+		"no subject":     func(c map[string]any) { delete(c, "sub") },
+	} {
+		c := valid()
+		edit(c)
+		if code := get(provider.Sign(c)); code != 401 {
+			t.Errorf("%s: %d, want 401", name, code)
+		}
+	}
+	// The audience may be a list.
+	c := valid()
+	c["aud"] = []string{"another-api", securitytest.Audience}
+	if code := get(provider.Sign(c)); code != 200 {
+		t.Errorf("audience list: %d", code)
+	}
+
+	// Forged tokens: no signature, HS256 with the public key, a changed payload.
+	token := provider.Sign(valid())
+	header, rest, _ := strings.Cut(token, ".")
+	payload, _, _ := strings.Cut(rest, ".")
+	b := base64.RawURLEncoding
+	h, _ := b.DecodeString(header)
+	hs256 := strings.Replace(string(h), `"RS256"`, `"HS256"`, 1) // same key ID, other algorithm
+	admin := b.EncodeToString([]byte(`{"iss":"` + provider.URL + `","aud":"` + securitytest.Audience + `","sub":"7","roles":["admin"],"exp":9999999999}`))
+	for name, forged := range map[string]string{
+		"alg none":        b.EncodeToString([]byte(`{"alg":"none"}`)) + "." + payload + ".",
+		"HS256":           b.EncodeToString([]byte(hs256)) + "." + payload + "." + b.EncodeToString([]byte("sig")),
+		"changed payload": header + "." + admin + "." + strings.SplitN(token, ".", 3)[2],
+	} {
+		if code := get(forged); code != 401 {
+			t.Errorf("%s: %d, want 401", name, code)
+		}
+	}
+}
+
+// TestUnknownKeyFetchLimit sends tokens with made up key IDs: the app may
+// fetch the provider's keys again once, not for every token, so it cannot
+// be used to flood the provider (OWASP A10).
+func TestUnknownKeyFetchLimit(t *testing.T) {
+	srv := newServer(t)
+	provider := securitytest.Provider()
+	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+	before := provider.KeyFetches()
+	_, rest, _ := strings.Cut(securitytest.Token(security.Principal{Subject: "7", Roles: []string{"user"}}), ".")
+	b := base64.RawURLEncoding
+	for i := range 20 {
+		header := b.EncodeToString(fmt.Appendf(nil, `{"alg":"RS256","typ":"JWT","kid":"made-up-%d"}`, i))
+		srv.GET("/orders").Header("Authorization", "Bearer "+header+"."+rest).Do(t).Status(t, 401)
+	}
+	if n := provider.KeyFetches() - before; n > 1 {
+		t.Fatalf("%d key fetches for 20 unknown key IDs, want at most 1", n)
+	}
+}
+
+func TestKeyRotation(t *testing.T) {
+	srv := newServer(t)
+	provider := securitytest.Provider()
+	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+	provider.RotateKey() // a token with a new key ID makes the app fetch the keys again
+	srv.GET("/orders").With(securitytest.User("7", "user")).Do(t).Status(t, 200)
+}
+
+func TestClaimMapping(t *testing.T) {
+	srv := newServer(t)
+	writer := security.Principal{Subject: "7", Authorities: []string{"orders:write", "orders:read"}}
+	srv.PUT("/orders/1").With(securitytest.As(writer)).Do(t).Status(t, 200) // scopes are authorities
+
+	var me security.Principal
+	srv.GET("/auth/me").With(securitytest.User("7", "user")).Do(t).Status(t, 200).JSON(t, &me)
+	if me.Subject != "7" || !me.HasRole("user") {
+		t.Fatalf("me %+v", me)
+	}
+
+	// Keycloak keeps roles in realm_access.roles.
+	securitytest.Setup(t)
+	provider := securitytest.Provider()
+	v, err := security.NewVerifier(context.Background(), &security.Config{IssuerURL: provider.URL, Audience: securitytest.Audience, RolesClaim: "realm_access.roles"}, dygo.Optional[*slog.Logger]{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	c := provider.Claims(security.Principal{Subject: "7"})
+	c["realm_access"] = map[string]any{"roles": []string{"admin"}}
+	c["scp"] = []string{"orders:cancel"}
+	p, err := v.Verify(context.Background(), provider.Sign(c))
+	if err != nil || !p.HasRole("admin") || !p.HasAuthority("orders:cancel") || p.Claims["realm_access"] == nil {
+		t.Fatalf("Verify = %+v, %v", p, err)
+	}
+}
+
+func TestRuleMatching(t *testing.T) {
+	cfg := &security.Config{AppEnv: "production"}
+	for _, r := range security.Rules(cfg) {
+		if r.String() == "" {
+			t.Fatal("rules describe themselves")
+		}
+	}
+	if s := security.Path("/admin/**").HasRole("admin").String(); s != "/admin/** -> role:admin" {
+		t.Fatalf("String() = %q", s)
+	}
+}

@@ -1,0 +1,28 @@
+# {{.Name}}
+
+A [Dygo](https://{{.Framework}}) application with the modular layout.
+
+```
+main.go              main.ts: load config, create the app, listen
+app.module.go        app.module.ts: the root module (AppModule) and app options
+app_test.go          e2e tests for the whole app
+src/
+  config/            typed configuration from the environment and .env
+  database/          the database connection, a global module
+  health/            /health/live and /health/ready (pings the database)
+  common/            types shared by features, such as Pagination
+  modules/           feature modules: dygo g resource <name> adds one here
+```
+
+```sh
+cp .env.example .env     # after a fresh clone: .env is git ignored, dygo new made yours
+dygo start               # http://localhost:9900, API docs at /docs
+dygo start -watch        # restart on every change
+go test ./...
+dygo check               # validate the module wiring without starting
+go build -o app .        # build the binary
+docker build -t app .    # build the image
+dygo routes              # the route table
+dygo g entity User       # src/modules/users/users.go, asks for the fields
+dygo g crud User         # module, service, controller and test, imported in app.module.go
+```

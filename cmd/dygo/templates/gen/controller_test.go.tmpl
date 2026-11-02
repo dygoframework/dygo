@@ -1,0 +1,38 @@
+package {{.Package}}
+
+import (
+	"testing"
+
+	"{{.Framework}}"
+	"{{.Framework}}/dygotest"
+{{- with .Sec}}
+
+	"{{.ImportPath}}"
+	"{{.ImportPath}}/securitytest"
+{{- end}}
+)
+
+func Test{{.P}}Controller(t *testing.T) {
+{{- if .Sec}}
+	securitytest.Setup(t)
+	srv := dygotest.New(&dygo.Module{
+		Name:        "test",
+		Imports:     []*dygo.Module{ {{- .Sec.Pkg}}.Module},
+		Controllers: []dygo.Provider{dygo.Provide(New{{.P}}Controller)},
+	}).CompileHTTP(t)
+	var out {{.P}}HelloOut
+{{- if .Sec.Public}}
+	srv.GET("/{{.Kebab}}").Do(t).Status(t, 200).JSON(t, &out)
+{{- else}}
+	srv.GET("/{{.Kebab}}").Do(t).Status(t, 401)
+	srv.GET("/{{.Kebab}}").With(securitytest.User("7", "user")).Do(t).Status(t, 200).JSON(t, &out)
+{{- end}}
+{{- else}}
+	srv := dygotest.New(&dygo.Module{
+		Name:        "test",
+		Controllers: []dygo.Provider{dygo.Provide(New{{.P}}Controller)},
+	}).CompileHTTP(t)
+	var out {{.P}}HelloOut
+	srv.GET("/{{.Kebab}}").Do(t).Status(t, 200).JSON(t, &out)
+{{- end}}
+}

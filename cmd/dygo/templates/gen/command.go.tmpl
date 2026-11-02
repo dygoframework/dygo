@@ -1,0 +1,28 @@
+package {{.Package}}
+
+import (
+	"context"
+	"fmt"
+)
+
+// {{.P}}Command is the {{.Kebab}} console command: go run . {{.Kebab}} [args].
+// It runs inside the application context, so add the services it needs as
+// parameters of New{{.P}}Command.
+type {{.P}}Command struct{}
+
+// New{{.P}}Command is the constructor.
+func New{{.P}}Command() *{{.P}}Command {
+	return &{{.P}}Command{}
+}
+
+// Name selects the command on the command line.
+func (c *{{.P}}Command) Name() string { return "{{.Kebab}}" }
+
+// Description is shown by go run . help.
+func (c *{{.P}}Command) Description() string { return "TODO: describe {{.Kebab}}" }
+
+// Run does the work. ctx is cancelled on Ctrl+C.
+func (c *{{.P}}Command) Run(ctx context.Context, args []string) error {
+	fmt.Println("{{.Kebab}}: args", args)
+	return nil
+}

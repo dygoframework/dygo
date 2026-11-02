@@ -1,0 +1,72 @@
+package {{.Package}}
+
+import (
+	"context"
+
+	"{{.Framework}}"
+{{- if .Sec.UsesSec}}
+
+	"{{.Sec.ImportPath}}"
+{{- end}}
+)
+
+// {{.P}}Controller maps /{{.Kebab}} to the service.
+type {{.P}}Controller struct {
+	svc *{{.P}}Service
+}
+
+// New{{.P}}Controller is the constructor.
+func New{{.P}}Controller(svc *{{.P}}Service) *{{.P}}Controller {
+	return &{{.P}}Controller{svc: svc}
+}
+
+// Routes registers the CRUD routes.
+func (c *{{.P}}Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/{{.Kebab}}")
+	r.Get("/", dygo.HandleNoInput(c.List){{with .Sec}}{{.ReadOption}}{{end}})
+	r.Get("/{id}", dygo.Handle(c.Get){{with .Sec}}{{.ReadOption}}{{end}})
+	r.Post("/", dygo.Handle(c.Create){{with .Sec}}{{.WriteOption}}{{end}})
+	r.Patch("/{id}", dygo.Handle(c.Update){{with .Sec}}{{.WriteOption}}{{end}})
+	r.Delete("/{id}", dygo.Handle(c.Delete){{with .Sec}}{{.WriteOption}}{{end}})
+}
+
+// {{.P}}IDIn is the {id} path parameter.
+type {{.P}}IDIn struct {
+	ID int `path:"id"`
+}
+
+// {{.P}}CreateIn is the input of POST /{{.Kebab}}.
+type {{.P}}CreateIn struct {
+	Body Create{{.Entity}} `body:"json"`
+}
+
+// {{.P}}UpdateIn is the input of PATCH /{{.Kebab}}/{id}.
+type {{.P}}UpdateIn struct {
+	ID   int            `path:"id"`
+	Body Update{{.Entity}} `body:"json"`
+}
+
+// List answers GET /{{.Kebab}}.
+func (c *{{.P}}Controller) List(ctx context.Context) ([]{{.Entity}}, error) {
+	return c.svc.List(ctx)
+}
+
+// Get answers GET /{{.Kebab}}/{id}.
+func (c *{{.P}}Controller) Get(ctx context.Context, in {{.P}}IDIn) ({{.Entity}}, error) {
+	return c.svc.Get(ctx, in.ID)
+}
+
+// Create answers POST /{{.Kebab}} with 201.
+func (c *{{.P}}Controller) Create(ctx context.Context, in {{.P}}CreateIn) ({{.Entity}}, error) {
+	return c.svc.Create(ctx, in.Body)
+}
+
+// Update answers PATCH /{{.Kebab}}/{id}.
+func (c *{{.P}}Controller) Update(ctx context.Context, in {{.P}}UpdateIn) ({{.Entity}}, error) {
+	return c.svc.Update(ctx, in.ID, in.Body)
+}
+
+// Delete answers DELETE /{{.Kebab}}/{id} with 204.
+func (c *{{.P}}Controller) Delete(ctx context.Context, in {{.P}}IDIn) (dygo.NoContent, error) {
+	return dygo.NoContent{}, c.svc.Delete(ctx, in.ID)
+}

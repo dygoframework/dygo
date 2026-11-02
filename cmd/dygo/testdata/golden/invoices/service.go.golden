@@ -1,0 +1,63 @@
+package invoices
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/dygoframework/dygo/errs"
+	"github.com/dygoframework/dygo/sql"
+)
+
+// Service stores invoices in the database set by DATABASE_URL in
+// .env: memory:// keeps them in memory, a Postgres or MySQL URL in that
+// database (create the table with dygo g migration and dygo db migrate).
+type Service struct {
+	repo *sql.Repository[Invoice]
+}
+
+// NewService is the constructor.
+func NewService(repo *sql.Repository[Invoice]) *Service {
+	return &Service{repo: repo}
+}
+
+// List returns every Invoice by ID.
+func (s *Service) List(ctx context.Context) ([]Invoice, error) {
+	return s.repo.List(ctx, sql.OrderBy("id"))
+}
+
+// Get returns one Invoice, or a 404 error.
+func (s *Service) Get(ctx context.Context, id int) (Invoice, error) {
+	invoice, err := s.repo.Find(ctx, id)
+	return invoice, notFound(id, err)
+}
+
+// Create stores a new Invoice.
+func (s *Service) Create(ctx context.Context, in CreateInvoice) (Invoice, error) {
+	invoice := in.Entity(0)
+	err := s.repo.Create(ctx, &invoice)
+	return invoice, err
+}
+
+// Update changes the fields set in in.
+func (s *Service) Update(ctx context.Context, id int, in UpdateInvoice) (Invoice, error) {
+	invoice, err := s.Get(ctx, id)
+	if err != nil {
+		return Invoice{}, err
+	}
+	in.Apply(&invoice)
+	return invoice, notFound(id, s.repo.Update(ctx, &invoice))
+}
+
+// Delete removes the Invoice with id.
+func (s *Service) Delete(ctx context.Context, id int) error {
+	return notFound(id, s.repo.Delete(ctx, id))
+}
+
+// notFound names the Invoice in a not found error.
+func notFound(id int, err error) error {
+	if errors.Is(err, sql.ErrNotFound) {
+		return errs.NotFound(fmt.Sprintf("Invoice %d not found", id))
+	}
+	return err
+}

@@ -1,0 +1,28 @@
+package main
+
+import (
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/sql"
+
+	"example.com/app/account"
+	"example.com/app/auth"
+	"example.com/app/chat"
+	"example.com/app/invoices"
+	"example.com/app/mailer"
+	"example.com/app/notify"
+	"example.com/app/orderitems"
+	"example.com/app/products"
+	"example.com/app/reports"
+	"example.com/app/seeddata"
+	"example.com/app/usersrpc"
+	"example.com/app/welcomeemail"
+)
+
+// AppModule is the root module.
+func AppModule() *dygo.Module {
+	return &dygo.Module{
+		Name:      "app",
+		Imports:   []*dygo.Module{orderitems.Module, sql.Module(nil), products.Module, invoices.Module, auth.Module, account.Module},
+		Providers: []dygo.Provider{dygo.Provide(mailer.NewService), dygo.Provide(seeddata.NewCommand), dygo.Provide(notify.NewListener), dygo.Provide(reports.NewJobs), dygo.Provide(welcomeemail.NewProcessor), dygo.Provide(chat.NewGateway), dygo.Provide(usersrpc.NewHandlers)},
+	}
+}

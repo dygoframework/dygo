@@ -1,0 +1,58 @@
+package account
+
+import (
+	"context"
+	"slices"
+	"strings"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/errs"
+	"github.com/dygoframework/dygo/meta"
+)
+
+// Guard lets a request through when it has a valid bearer token, and the
+// route's roles if it has any. Routes opt in with Required or Roles.
+type Guard struct {
+	tokens *Tokens
+}
+
+// NewGuard is the constructor.
+func NewGuard(tokens *Tokens) *Guard {
+	return &Guard{tokens: tokens}
+}
+
+var rolesKey = meta.NewKey[[]string]("account.roles")
+
+// Required protects a route, or every route of a controller on Router.Use.
+func Required() dygo.RouteOption { return dygo.Guards(dygo.Ref[*Guard]()) }
+
+// Roles protects a route and requires one of roles.
+func Roles(roles ...string) dygo.RouteOption {
+	return dygo.Options(Required(), rolesKey.Set(roles))
+}
+
+type claimsKey struct{}
+
+// UserFrom returns the claims of the signed in user, in a protected route.
+func UserFrom(ctx context.Context) (Claims, bool) {
+	c, ok := ctx.Value(claimsKey{}).(Claims)
+	return c, ok
+}
+
+// CanActivate answers 401 without a valid token and 403 without a role.
+func (g *Guard) CanActivate(ec dygo.ExecutionContext) (bool, error) {
+	token, ok := strings.CutPrefix(ec.HTTP().Request().Header.Get("Authorization"), "Bearer ")
+	if !ok {
+		return false, errs.Unauthorized("missing bearer token")
+	}
+	c, err := g.tokens.Verify(token)
+	if err != nil {
+		return false, errs.Unauthorized(err.Error())
+	}
+	ec.SetContext(context.WithValue(ec.Context(), claimsKey{}, c))
+	want := meta.GetAllAndMerge(ec, rolesKey)
+	if len(want) == 0 || slices.ContainsFunc(want, func(r string) bool { return slices.Contains(c.Roles, r) }) {
+		return true, nil
+	}
+	return false, nil
+}

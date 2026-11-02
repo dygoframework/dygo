@@ -1,0 +1,15 @@
+package {{.Package}}
+
+import (
+	"testing"
+
+	"{{.Framework}}"
+	"{{.Framework}}/dygotest"
+)
+
+func Test{{.P}}Service(t *testing.T) {
+	app := dygotest.Module([]dygo.Provider{dygo.Provide(New{{.P}}Service)}).Compile(t)
+	if _, err := dygo.Get[*{{.P}}Service](app); err != nil {
+		t.Fatal(err)
+	}
+}

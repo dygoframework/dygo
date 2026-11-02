@@ -1,0 +1,24 @@
+package {{.Pkg}}
+
+import (
+	"net/http"
+
+	"{{.Framework}}/config"
+	"{{.Framework}}/middleware"
+)
+
+// CORS lets the browser origins in CORS_ALLOWED_ORIGINS call the API. With
+// none set, browsers only allow same origin calls, the safe default. It is
+// middleware, so preflight requests are answered before routing; dygo g
+// {{.Pkg}} adds it to the app's dygo.WithMiddleware.
+func CORS() func(http.Handler) http.Handler {
+	cfg, err := config.Load[Config](config.Files(".env.local", ".env"))
+	if err != nil || len(cfg.Origins()) == 0 {
+		return func(next http.Handler) http.Handler { return next }
+	}
+	return middleware.CORS(middleware.CORSOptions{
+		AllowOrigins:  cfg.Origins(),
+		AllowHeaders:  []string{"Authorization", "Content-Type"},
+		ExposeHeaders: []string{"WWW-Authenticate"},
+	})
+}

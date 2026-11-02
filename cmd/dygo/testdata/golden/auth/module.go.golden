@@ -1,0 +1,16 @@
+// Package auth is the auth feature.
+package auth
+
+import (
+	"github.com/dygoframework/dygo"
+
+	"example.com/app/auth/tokens"
+)
+
+// Module wires the auth feature. dygo generate service and controller
+// register new providers here.
+var Module = &dygo.Module{
+	Name:        "auth",
+	Providers:   []dygo.Provider{dygo.Provide(NewService), dygo.Provide(tokens.NewService)},
+	Controllers: []dygo.Provider{dygo.Provide(NewController)},
+}

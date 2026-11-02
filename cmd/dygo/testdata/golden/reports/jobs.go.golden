@@ -1,0 +1,29 @@
+package reports
+
+import (
+	"context"
+	"log/slog"
+
+	"github.com/dygoframework/dygo/schedule"
+)
+
+// Jobs holds the reports scheduled jobs. Every provider with a Jobs method
+// is found by schedule.Module at startup.
+type Jobs struct{}
+
+// NewJobs is the constructor; add the services the jobs need as parameters.
+func NewJobs() *Jobs {
+	return &Jobs{}
+}
+
+// Jobs declares the schedule: s.Cron (5 or 6 fields, or @hourly, @daily),
+// s.Every (an interval) or s.After (once, after a delay).
+func (j *Jobs) Jobs(s *schedule.Registry) {
+	s.Cron("reports", "0 * * * *", j.run) // every hour, on the hour
+}
+
+// run does the work. ctx is cancelled when the app shuts down.
+func (j *Jobs) run(ctx context.Context) error {
+	slog.InfoContext(ctx, "reports: running")
+	return nil
+}

@@ -1,0 +1,25 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"testing"
+
+	"{{.Framework}}"
+	"{{.Framework}}/events"
+)
+
+func TestListener(t *testing.T) {
+	app, err := dygo.CreateApplicationContext(context.Background(), &dygo.Module{
+		Name:      "test",
+		Imports:   []*dygo.Module{events.Module()},
+		Providers: []dygo.Provider{dygo.Provide(NewListener)},
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer app.Close(context.Background())
+	em := dygo.MustGet[*events.Emitter](app)
+	if err := em.Emit(context.Background(), Event{ID: "1"}); err != nil {
+		t.Fatal(err)
+	}
+}

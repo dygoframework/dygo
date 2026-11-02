@@ -1,0 +1,84 @@
+package invoices
+
+import (
+	"context"
+	"net/mail"
+	"strings"
+
+	"github.com/dygoframework/dygo/validate"
+)
+
+// Invoice is the stored entity and the response body.
+type Invoice struct {
+	ID     int    `json:"id" db:"id,pk,auto"`
+	Number string `json:"number"`
+	Paid   bool   `json:"paid"`
+	Owner  string `json:"owner"`
+}
+
+// CreateInvoice is the body of POST /invoices.
+type CreateInvoice struct {
+	Number string `json:"number" example:"number 1"`
+	Paid   bool   `json:"paid" example:"true"`
+	Owner  string `json:"owner" example:"ada@example.com"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *CreateInvoice) Validate(context.Context) error {
+	var v validate.Errors
+	if strings.TrimSpace(b.Number) == "" {
+		v.Add("body", "number", "must not be empty")
+	}
+	if !isEmail(b.Owner) {
+		v.Add("body", "owner", "must be an email address")
+	}
+	return v.Err()
+}
+
+// Entity returns the new Invoice with the given ID.
+func (b *CreateInvoice) Entity(id int) Invoice {
+	return Invoice{
+		ID:     id,
+		Number: b.Number,
+		Paid:   b.Paid,
+		Owner:  b.Owner,
+	}
+}
+
+// UpdateInvoice is the body of PATCH /invoices/{id}. Missing fields are
+// left unchanged.
+type UpdateInvoice struct {
+	Number *string `json:"number,omitempty"`
+	Paid   *bool   `json:"paid,omitempty"`
+	Owner  *string `json:"owner,omitempty"`
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *UpdateInvoice) Validate(context.Context) error {
+	var v validate.Errors
+	if b.Number != nil && strings.TrimSpace(*b.Number) == "" {
+		v.Add("body", "number", "must not be empty")
+	}
+	if b.Owner != nil && !isEmail(*b.Owner) {
+		v.Add("body", "owner", "must be an email address")
+	}
+	return v.Err()
+}
+
+// Apply copies the fields that were sent to e.
+func (b *UpdateInvoice) Apply(e *Invoice) {
+	if b.Number != nil {
+		e.Number = *b.Number
+	}
+	if b.Paid != nil {
+		e.Paid = *b.Paid
+	}
+	if b.Owner != nil {
+		e.Owner = *b.Owner
+	}
+}
+
+func isEmail(s string) bool {
+	a, err := mail.ParseAddress(s)
+	return err == nil && a.Address == s
+}

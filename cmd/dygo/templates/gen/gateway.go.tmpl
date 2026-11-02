@@ -1,0 +1,44 @@
+package {{.Pkg}}
+
+import (
+	"context"
+
+	"{{.Framework}}/ws"
+)
+
+// Ping is a client message: {"event": "{{.Kebab}}.ping", "data": {"text": "hi"}, "id": 1}.
+type Ping struct {
+	Text string `json:"text"`
+}
+
+// Pong is the ack sent back with the same event and id.
+type Pong struct {
+	Text string `json:"text"`
+}
+
+// Gateway handles {{.Kebab}} WebSocket events. ws.Module serves every
+// provider with a Gateway method at its path (/ws by default).
+type Gateway struct{}
+
+// NewGateway is the constructor. Inject *ws.Server to broadcast or reach
+// rooms.
+func NewGateway() *Gateway {
+	return &Gateway{}
+}
+
+// Gateway declares the handlers, like @SubscribeMessage.
+func (g *Gateway) Gateway(r ws.Router) {
+	r.On("{{.Kebab}}.ping", ws.Handle(g.ping))
+}
+
+// OnConnection runs for every new client; an error refuses it.
+func (g *Gateway) OnConnection(ctx context.Context, c *ws.Client) error {
+	return nil
+}
+
+// OnDisconnect runs when a client is gone.
+func (g *Gateway) OnDisconnect(c *ws.Client, reason ws.DisconnectReason) {}
+
+func (g *Gateway) ping(ctx context.Context, c *ws.Client, in Ping) (Pong, error) {
+	return Pong{Text: in.Text}, nil
+}

@@ -1,0 +1,138 @@
+CREATE orderitems/module.go
+CREATE orderitems/orderitems.go
+CREATE orderitems/service.go
+CREATE orderitems/controller.go
+CREATE orderitems/controller_test.go
+UPDATE app.go (Imports += orderitems.Module)
+UPDATE app.go (Imports += sql.Module(nil): the database in DATABASE_URL)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+
+ Success! CRUD for OrderItem:
+
+   GET    /order-items          List    (index)
+   POST   /order-items          Create  (new)
+   GET    /order-items/{id}     Get     (show)
+   PATCH  /order-items/{id}     Update  (edit)
+   DELETE /order-items/{id}     Delete  (delete)
+
+ Next: go test ./... and dygo routes; try them at /docs.
+UPDATE orderitems/orderitems.go (+ qty, note, contact, due)
+UPDATE orderitems/controller_test.go (sample values)
+
+Success! Next: go test ./orderitems, and dygo g crud OrderItem if it has no CRUD yet.
+CREATE products/module.go
+CREATE products/products.go
+CREATE products/service.go
+CREATE products/controller.go
+CREATE products/controller_test.go
+UPDATE app.go (Imports += products.Module)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+
+ Success! CRUD for Product:
+
+   GET    /products          List    (index)
+   POST   /products          Create  (new)
+   GET    /products/{id}     Get     (show)
+   PATCH  /products/{id}     Update  (edit)
+   DELETE /products/{id}     Delete  (delete)
+
+ Next: go test ./... and dygo routes; try them at /docs.
+CREATE invoices/invoices.go
+
+Next: run dygo g entity Invoice again to add fields, or dygo g crud Invoice to build the CRUD around it.
+CREATE invoices/module.go
+CREATE invoices/service.go
+CREATE invoices/controller.go
+CREATE invoices/controller_test.go
+UPDATE app.go (Imports += invoices.Module)
+
+Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
+
+ Success! CRUD for Invoice:
+
+   GET    /invoices          List    (index)
+   POST   /invoices          Create  (new)
+   GET    /invoices/{id}     Get     (show)
+   PATCH  /invoices/{id}     Update  (edit)
+   DELETE /invoices/{id}     Delete  (delete)
+
+ Next: go test ./... and dygo routes; try them at /docs.
+CREATE auth/module.go
+UPDATE app.go (Imports += auth.Module)
+CREATE auth/service.go
+CREATE auth/service_test.go
+UPDATE auth/module.go (Providers += dygo.Provide(NewService))
+CREATE auth/controller.go
+CREATE auth/controller_test.go
+UPDATE auth/module.go (Controllers += dygo.Provide(NewController))
+CREATE auth/tokens/service.go
+CREATE auth/tokens/service_test.go
+UPDATE auth/module.go (Providers += dygo.Provide(tokens.NewService))
+CREATE mailer/service.go
+CREATE mailer/service_test.go
+UPDATE app.go (Providers += dygo.Provide(mailer.NewService))
+CREATE seeddata/command.go
+CREATE seeddata/command_test.go
+UPDATE app.go (Providers += dygo.Provide(seeddata.NewCommand))
+
+The main package (.) does not run console commands yet. Add this to main before the server starts:
+
+	if len(os.Args) > 1 { // go run . <command>
+		os.Exit(console.Main(ctx, AppModule(cfg, log), os.Args[1:], dygo.WithLogger(log)))
+	}
+
+with the import "github.com/dygoframework/dygo/console".
+
+Next: go run . seed-data, and go run . help lists every command.
+CREATE account/module.go
+CREATE account/config.go
+CREATE account/users.go
+CREATE account/password.go
+CREATE account/tokens.go
+CREATE account/service.go
+CREATE account/dto.go
+CREATE account/guard.go
+CREATE account/controller.go
+CREATE account/controller_test.go
+UPDATE app.go (Imports += account.Module)
+
+Next:
+  set AUTH_SECRET in .env               # openssl rand -hex 32
+  POST /account/register, POST /account/login, GET /account/me
+  protect a route:   r.Get("/", h, account.Required())  or  account.Roles("admin")
+  read the user:     claims, _ := account.UserFrom(ctx)
+CREATE notify/listener.go
+CREATE notify/listener_test.go
+UPDATE app.go (Providers += dygo.Provide(notify.NewListener))
+
+Import events.Module() in the root module (Imports), with the import "github.com/dygoframework/dygo/events", so the listener runs.
+
+Next: emit notify.Event from a service that injects *events.Emitter.
+CREATE reports/jobs.go
+CREATE reports/jobs_test.go
+UPDATE app.go (Providers += dygo.Provide(reports.NewJobs))
+
+Import schedule.Module() in the root module (Imports), with the import "github.com/dygoframework/dygo/schedule", so the cron runs.
+
+Next: the job runs every hour; change the schedule in reports/jobs.go.
+CREATE welcomeemail/processor.go
+CREATE welcomeemail/processor_test.go
+UPDATE app.go (Providers += dygo.Provide(welcomeemail.NewProcessor))
+
+Import queue.Module(queue.Options{}) in the root module (Imports), with the import "github.com/dygoframework/dygo/queue", so the job runs.
+
+Next: add jobs with q.Add(ctx, welcomeemail.JobName, welcomeemail.Payload{...}) from a service that injects *queue.Queue.
+CREATE chat/gateway.go
+CREATE chat/gateway_test.go
+UPDATE app.go (Providers += dygo.Provide(chat.NewGateway))
+
+Import ws.Module(ws.Options{}) in the root module (Imports), with the import "github.com/dygoframework/dygo/ws", so the gateway runs.
+
+Next: connect to /ws and send {"event": "chat.ping", "data": {"text": "hi"}}; run go get github.com/dygoframework/dygo/ws.
+CREATE usersrpc/handlers.go
+CREATE usersrpc/handlers_test.go
+UPDATE app.go (Providers += dygo.Provide(usersrpc.NewHandlers))
+
+Next: serve the handlers with app.ConnectMicroservice(nats.NewServer(...)) from github.com/dygoframework/dygo/micro/nats.

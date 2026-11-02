@@ -1,0 +1,10 @@
+package {{.Package}}
+
+// {{.P}}Service holds the {{.Kebab}} logic.
+type {{.P}}Service struct{}
+
+// New{{.P}}Service is the constructor. Add dependencies as parameters and the
+// container passes them in.
+func New{{.P}}Service() *{{.P}}Service {
+	return &{{.P}}Service{}
+}

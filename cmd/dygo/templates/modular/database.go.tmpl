@@ -1,0 +1,18 @@
+// Package database owns the database connection, set by DATABASE_URL in
+// .env. memory:// keeps the data in memory, so it is lost when the app
+// stops; dygo db init adds the Postgres or MySQL driver and puts its URL
+// there. Module is global, so every feature can inject *database.DB, or a
+// *sql.Repository[T] from sql.ForFeature.
+package database
+
+import (
+	"{{.Framework}}"
+	"{{.Framework}}/sql"
+)
+
+// Module opens the database at boot and closes it on shutdown. The readiness
+// check is registered by src/health.
+var Module *dygo.Module = sql.Module(nil, sql.NoHealth())
+
+// DB is the database.
+type DB = sql.DB

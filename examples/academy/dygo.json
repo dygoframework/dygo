@@ -1,0 +1,7 @@
+{
+  "layout": "modular",
+  "main": ".",
+  "featuresDir": "internal/modules",
+  "rootModuleDir": ".",
+  "security": true
+}

@@ -1,0 +1,29 @@
+CREATE security/module.go
+CREATE security/config.go
+CREATE security/rules.go
+CREATE security/rule.go
+CREATE security/guard.go
+CREATE security/principal.go
+CREATE security/roles.go
+CREATE security/authorize.go
+CREATE security/cors.go
+CREATE security/verifier.go
+CREATE security/tokencache.go
+CREATE security/controller.go
+CREATE security/security_test.go
+CREATE security/securitytest/securitytest.go
+UPDATE app.go (Imports += security.Module)
+UPDATE .env.example (OAUTH_ISSUER_URL, OAUTH_AUDIENCE, OAUTH_ROLES_CLAIM, CORS_ALLOWED_ORIGINS)
+UPDATE dygo.json ("security": true)
+UPDATE app.go (dygo.WithMiddleware += security.CORS())
+UPDATE app.go (dygo.WithMiddleware += middleware.SecureHeaders(middleware.SecureHeadersOptions{}))
+
+Every route now needs a bearer token from your identity provider, unless security/rules.go or security.Public() opens it.
+Next:
+  set OAUTH_ISSUER_URL and OAUTH_AUDIENCE in .env   # e.g. https://auth.example.com/realms/shop
+  Keycloak roles:   OAUTH_ROLES_CLAIM=realm_access.roles
+  GET /auth/me shows what the token says
+  need a role:      r.Delete("/{id}", h, security.Roles("admin"))
+  need a scope:     r.Put("/{id}", h, security.Authorities("orders:write"))
+  read the user:    p, _ := security.CurrentUser(ctx)   // p.Claims has every claim
+  in tests:         securitytest.Setup(t); srv.GET("/x").With(securitytest.User("7", "user"))

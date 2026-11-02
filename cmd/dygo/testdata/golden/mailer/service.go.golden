@@ -1,0 +1,10 @@
+package mailer
+
+// Service holds the mailer logic.
+type Service struct{}
+
+// NewService is the constructor. Add dependencies as parameters and the
+// container passes them in.
+func NewService() *Service {
+	return &Service{}
+}

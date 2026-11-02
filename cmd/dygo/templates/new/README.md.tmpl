@@ -1,0 +1,21 @@
+# {{.Name}}
+
+A [Dygo](https://{{.Framework}}) application.
+
+```sh
+cp .env.example .env     # after a fresh clone: .env is git ignored, dygo new made yours
+dygo start               # http://localhost:9900, API docs at /docs
+dygo start -watch        # restart on every change
+go test ./...
+dygo check               # validate the module wiring without starting
+go build -o app .        # build the binary
+docker build -t app .    # build the image
+dygo routes              # the route table
+dygo g entity User       # users.go, asks for the fields
+dygo g crud User         # users.module.go, users.service.go, users.controller.go and a test
+```
+
+Everything is in package `main`. `dygo g` writes flat files named after the feature and their role
+(`users.service.go` with `UsersService`), so the project stays one folder.
+
+Configuration comes from the environment and `.env` (see `.env.example` and `config.go`).

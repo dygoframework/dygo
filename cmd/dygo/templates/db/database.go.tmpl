@@ -1,0 +1,18 @@
+// Package database owns the database connection: a {{.Driver}} pool from
+// {{.Framework}}/sql, configured by DATABASE_URL and the DB_* variables
+// in .env. Module is global, so every feature can inject *database.DB, or
+// a *sql.Repository[T] from sql.ForFeature.
+package database
+
+import (
+	"{{.Framework}}"
+	"{{.Framework}}/sql"
+	"{{.Framework}}/sql/{{.Driver}}"
+)
+
+// Module opens the pool at boot and closes it on shutdown. The readiness
+// check is registered by src/health.
+var Module *dygo.Module = {{.Driver}}.Module(sql.NoHealth())
+
+// DB is the connection pool.
+type DB = sql.DB

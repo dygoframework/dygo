@@ -1,0 +1,73 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"log/slog"
+	"strings"
+	"sync"
+
+	"{{.Framework}}"
+)
+
+// User is a registered user. The password hash never leaves the server.
+type User struct {
+	ID           int      `json:"id"`
+	Email        string   `json:"email"`
+	Roles        []string `json:"roles"`
+	PasswordHash string   `json:"-"`
+}
+
+// Users stores users in memory: accounts are lost when the app stops, even
+// when DATABASE_URL is set. Replace it with your database (see
+// docs/recipes/sql.md); keep emails unique and compare them in lower case.
+type Users struct {
+	mu      sync.RWMutex
+	byEmail map[string]User
+	nextID  int
+	log     *slog.Logger
+}
+
+// NewUsers is the constructor.
+func NewUsers(log dygo.Optional[*slog.Logger]) *Users {
+	return &Users{byEmail: map[string]User{}, log: log.OrElse(slog.Default())}
+}
+
+// OnApplicationBootstrap says at startup where the users are kept.
+func (s *Users) OnApplicationBootstrap(ctx context.Context) error {
+	s.log.InfoContext(ctx, "users stored in memory", "service", "Users")
+	return nil
+}
+
+// Create stores u with a new ID. It reports false when the email is taken.
+func (s *Users) Create(_ context.Context, u User) (User, bool) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	key := strings.ToLower(u.Email)
+	if _, taken := s.byEmail[key]; taken {
+		return User{}, false
+	}
+	s.nextID++
+	u.ID = s.nextID
+	s.byEmail[key] = u
+	return u, true
+}
+
+// ByEmail finds a user by email, in any case.
+func (s *Users) ByEmail(_ context.Context, email string) (User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	u, ok := s.byEmail[strings.ToLower(email)]
+	return u, ok
+}
+
+// ByID finds a user by ID.
+func (s *Users) ByID(_ context.Context, id int) (User, bool) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	for _, u := range s.byEmail {
+		if u.ID == id {
+			return u, true
+		}
+	}
+	return User{}, false
+}

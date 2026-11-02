@@ -1,0 +1,28 @@
+package security
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+)
+
+// Controller serves GET /auth/me. Sign up, login and logout happen at the
+// identity provider.
+type Controller struct{}
+
+// NewController is the constructor.
+func NewController() *Controller { return &Controller{} }
+
+// Routes registers me.
+func (c *Controller) Routes(r dygo.Router) {
+	r.Get("/auth/me", dygo.HandleNoInput(c.Me))
+}
+
+// Me answers GET /auth/me with the signed in user, as the token describes it.
+func (c *Controller) Me(ctx context.Context) (Principal, error) {
+	p, ok := CurrentUser(ctx)
+	if !ok {
+		return Principal{}, errUnauthenticated
+	}
+	return p, nil
+}

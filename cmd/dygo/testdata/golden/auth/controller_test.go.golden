@@ -1,0 +1,17 @@
+package auth
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+)
+
+func TestController(t *testing.T) {
+	srv := dygotest.New(&dygo.Module{
+		Name:        "test",
+		Controllers: []dygo.Provider{dygo.Provide(NewController)},
+	}).CompileHTTP(t)
+	var out HelloOut
+	srv.GET("/auth").Do(t).Status(t, 200).JSON(t, &out)
+}

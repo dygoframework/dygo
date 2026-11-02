@@ -1,0 +1,63 @@
+package {{.Package}}
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"{{.Framework}}/errs"
+	"{{.Framework}}/sql"
+)
+
+// {{.P}}Service stores {{.Kebab}} in the database set by DATABASE_URL in
+// .env: memory:// keeps them in memory, a Postgres or MySQL URL in that
+// database (create the table with dygo g migration and dygo db migrate).
+type {{.P}}Service struct {
+	repo *sql.Repository[{{.Entity}}]
+}
+
+// New{{.P}}Service is the constructor.
+func New{{.P}}Service(repo *sql.Repository[{{.Entity}}]) *{{.P}}Service {
+	return &{{.P}}Service{repo: repo}
+}
+
+// List returns every {{.Entity}} by ID.
+func (s *{{.P}}Service) List(ctx context.Context) ([]{{.Entity}}, error) {
+	return s.repo.List(ctx, sql.OrderBy("id"))
+}
+
+// Get returns one {{.Entity}}, or a 404 error.
+func (s *{{.P}}Service) Get(ctx context.Context, id int) ({{.Entity}}, error) {
+	{{.Var}}, err := s.repo.Find(ctx, id)
+	return {{.Var}}, {{.Local "notFound"}}(id, err)
+}
+
+// Create stores a new {{.Entity}}.
+func (s *{{.P}}Service) Create(ctx context.Context, in Create{{.Entity}}) ({{.Entity}}, error) {
+	{{.Var}} := in.Entity(0)
+	err := s.repo.Create(ctx, &{{.Var}})
+	return {{.Var}}, err
+}
+
+// Update changes the fields set in in.
+func (s *{{.P}}Service) Update(ctx context.Context, id int, in Update{{.Entity}}) ({{.Entity}}, error) {
+	{{.Var}}, err := s.Get(ctx, id)
+	if err != nil {
+		return {{.Entity}}{}, err
+	}
+	in.Apply(&{{.Var}})
+	return {{.Var}}, {{.Local "notFound"}}(id, s.repo.Update(ctx, &{{.Var}}))
+}
+
+// Delete removes the {{.Entity}} with id.
+func (s *{{.P}}Service) Delete(ctx context.Context, id int) error {
+	return {{.Local "notFound"}}(id, s.repo.Delete(ctx, id))
+}
+
+// {{.Local "notFound"}} names the {{.Entity}} in a not found error.
+func {{.Local "notFound"}}(id int, err error) error {
+	if errors.Is(err, sql.ErrNotFound) {
+		return errs.NotFound(fmt.Sprintf("{{.Entity}} %d not found", id))
+	}
+	return err
+}

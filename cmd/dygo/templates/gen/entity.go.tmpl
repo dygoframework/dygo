@@ -1,0 +1,75 @@
+package {{.Package}}
+
+import (
+	"context"
+{{- range .Imports}}
+	"{{.}}"
+{{- end}}
+
+	"{{.Framework}}/validate"
+)
+
+// {{.Entity}} is the stored entity and the response body.
+type {{.Entity}} struct {
+	ID int `json:"id" db:"id,pk,auto"`
+{{- range .Fields}}
+	{{.EntityField}}
+{{- end}}
+}
+
+// Create{{.Entity}} is the body of POST /{{.Kebab}}.
+type Create{{.Entity}} struct {
+{{- range .Fields}}
+	{{.CreateField}}
+{{- end}}
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *Create{{.Entity}}) Validate(context.Context) error {
+	var v validate.Errors
+{{- range .Fields}}{{with .CreateCheck "b"}}
+	{{.}}
+{{- end}}{{end}}
+	return v.Err()
+}
+
+// Entity returns the new {{.Entity}} with the given ID.
+func (b *Create{{.Entity}}) Entity(id int) {{.Entity}} {
+	return {{.Entity}}{
+		ID: id,
+{{- range .Fields}}
+		{{.EntityElt "b"}}
+{{- end}}
+	}
+}
+
+// Update{{.Entity}} is the body of PATCH /{{.Kebab}}/{id}. Missing fields are
+// left unchanged.
+type Update{{.Entity}} struct {
+{{- range .Fields}}
+	{{.UpdateField}}
+{{- end}}
+}
+
+// Validate runs in the validation pipe (validate.Methods).
+func (b *Update{{.Entity}}) Validate(context.Context) error {
+	var v validate.Errors
+{{- range .Fields}}{{with .UpdateCheck "b"}}
+	{{.}}
+{{- end}}{{end}}
+	return v.Err()
+}
+
+// Apply copies the fields that were sent to e.
+func (b *Update{{.Entity}}) Apply(e *{{.Entity}}) {
+{{- range .Fields}}
+	{{.ApplyLine "b" "e"}}
+{{- end}}
+}
+{{- if and .Fields.HasEmail (not .IsEmail)}}
+
+func isEmail(s string) bool {
+	a, err := mail.ParseAddress(s)
+	return err == nil && a.Address == s
+}
+{{- end}}

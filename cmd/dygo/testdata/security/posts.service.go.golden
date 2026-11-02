@@ -1,0 +1,63 @@
+package main
+
+import (
+	"context"
+	"errors"
+	"fmt"
+
+	"github.com/dygoframework/dygo/errs"
+	"github.com/dygoframework/dygo/sql"
+)
+
+// PostsService stores posts in the database set by DATABASE_URL in
+// .env: memory:// keeps them in memory, a Postgres or MySQL URL in that
+// database (create the table with dygo g migration and dygo db migrate).
+type PostsService struct {
+	repo *sql.Repository[Post]
+}
+
+// NewPostsService is the constructor.
+func NewPostsService(repo *sql.Repository[Post]) *PostsService {
+	return &PostsService{repo: repo}
+}
+
+// List returns every Post by ID.
+func (s *PostsService) List(ctx context.Context) ([]Post, error) {
+	return s.repo.List(ctx, sql.OrderBy("id"))
+}
+
+// Get returns one Post, or a 404 error.
+func (s *PostsService) Get(ctx context.Context, id int) (Post, error) {
+	post, err := s.repo.Find(ctx, id)
+	return post, postsNotFound(id, err)
+}
+
+// Create stores a new Post.
+func (s *PostsService) Create(ctx context.Context, in CreatePost) (Post, error) {
+	post := in.Entity(0)
+	err := s.repo.Create(ctx, &post)
+	return post, err
+}
+
+// Update changes the fields set in in.
+func (s *PostsService) Update(ctx context.Context, id int, in UpdatePost) (Post, error) {
+	post, err := s.Get(ctx, id)
+	if err != nil {
+		return Post{}, err
+	}
+	in.Apply(&post)
+	return post, postsNotFound(id, s.repo.Update(ctx, &post))
+}
+
+// Delete removes the Post with id.
+func (s *PostsService) Delete(ctx context.Context, id int) error {
+	return postsNotFound(id, s.repo.Delete(ctx, id))
+}
+
+// postsNotFound names the Post in a not found error.
+func postsNotFound(id int, err error) error {
+	if errors.Is(err, sql.ErrNotFound) {
+		return errs.NotFound(fmt.Sprintf("Post %d not found", id))
+	}
+	return err
+}

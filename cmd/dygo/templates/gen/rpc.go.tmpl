@@ -1,0 +1,36 @@
+package {{.Pkg}}
+
+import (
+	"context"
+
+	"{{.Framework}}/micro"
+)
+
+// GetIn is the payload of the {{.Kebab}}.get message.
+type GetIn struct {
+	ID string `json:"id"`
+}
+
+// GetOut is its reply.
+type GetOut struct {
+	ID string `json:"id"`
+}
+
+// Handlers answers {{.Kebab}} messages and events. A transport connected with
+// app.ConnectMicroservice (micro/nats, or micro.NewLocal in tests) serves
+// every provider with a Patterns method.
+type Handlers struct{}
+
+// NewHandlers is the constructor; add the services it needs as parameters.
+func NewHandlers() *Handlers {
+	return &Handlers{}
+}
+
+// Patterns declares the handlers, like @MessagePattern and @EventPattern.
+func (h *Handlers) Patterns(r micro.Router) {
+	r.Message("{{.Kebab}}.get", micro.Handle(h.get))
+}
+
+func (h *Handlers) get(ctx context.Context, in GetIn) (GetOut, error) {
+	return GetOut{ID: in.ID}, nil
+}

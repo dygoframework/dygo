@@ -1,0 +1,43 @@
+package invoices
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+	"github.com/dygoframework/dygo/sql"
+	"github.com/dygoframework/dygo/validate"
+)
+
+func TestCRUD(t *testing.T) {
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), Module}}
+	srv := dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
+
+	var created Invoice
+	srv.POST("/invoices").JSON(CreateInvoice{
+		Number: "number 1",
+		Paid:   true,
+		Owner:  "ada@example.com",
+	}).Do(t).Status(t, 201).JSON(t, &created)
+	if created.ID == 0 {
+		t.Fatalf("created %+v", created)
+	}
+	srv.POST("/invoices").JSON(CreateInvoice{}).Do(t).Status(t, 400)
+
+	var list []Invoice
+	srv.GET("/invoices").Do(t).Status(t, 200).JSON(t, &list)
+	if len(list) != 1 {
+		t.Fatalf("list %+v", list)
+	}
+
+	number := "changed"
+	var updated Invoice
+	srv.PATCH("/invoices/1").JSON(UpdateInvoice{Number: &number}).Do(t).Status(t, 200).JSON(t, &updated)
+	if updated.Number != number {
+		t.Fatalf("updated %+v", updated)
+	}
+
+	srv.DELETE("/invoices/1").Do(t).Status(t, 204)
+	srv.GET("/invoices/1").Do(t).Status(t, 404)
+	srv.GET("/invoices/abc").Do(t).Status(t, 400)
+}

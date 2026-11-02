@@ -1,0 +1,22 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+
+	"example.com/app/security"
+	"example.com/app/security/securitytest"
+)
+
+func TestHooksController(t *testing.T) {
+	securitytest.Setup(t)
+	srv := dygotest.New(&dygo.Module{
+		Name:        "test",
+		Imports:     []*dygo.Module{security.Module},
+		Controllers: []dygo.Provider{dygo.Provide(NewHooksController)},
+	}).CompileHTTP(t)
+	var out HooksHelloOut
+	srv.GET("/hooks").Do(t).Status(t, 200).JSON(t, &out)
+}

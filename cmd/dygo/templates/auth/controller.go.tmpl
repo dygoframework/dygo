@@ -1,0 +1,47 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"net/http"
+
+	"{{.Framework}}"
+)
+
+// Controller serves /{{.Kebab}}.
+type Controller struct {
+	svc *Service
+}
+
+// NewController is the constructor.
+func NewController(svc *Service) *Controller {
+	return &Controller{svc: svc}
+}
+
+// Routes registers register, login and me.
+func (c *Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/{{.Kebab}}")
+	r.Post("/register", dygo.Handle(c.Register))
+	r.Post("/login", dygo.Handle(c.Login), dygo.HTTPCode(http.StatusOK))
+	r.Get("/me", dygo.HandleNoInput(c.Me), Required())
+}
+
+// CredentialsIn is the input of register and login.
+type CredentialsIn struct {
+	Body Credentials `body:"json"`
+}
+
+// Register answers POST /{{.Kebab}}/register with 201 and the new user.
+func (c *Controller) Register(ctx context.Context, in CredentialsIn) (User, error) {
+	return c.svc.Register(ctx, in.Body)
+}
+
+// Login answers POST /{{.Kebab}}/login with an access token.
+func (c *Controller) Login(ctx context.Context, in CredentialsIn) (TokenOut, error) {
+	return c.svc.Login(ctx, in.Body)
+}
+
+// Me answers GET /{{.Kebab}}/me with the signed in user.
+func (c *Controller) Me(ctx context.Context) (User, error) {
+	claims, _ := UserFrom(ctx)
+	return c.svc.Me(ctx, claims)
+}

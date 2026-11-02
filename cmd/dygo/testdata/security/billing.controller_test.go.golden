@@ -1,0 +1,23 @@
+package main
+
+import (
+	"testing"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/dygotest"
+
+	"example.com/app/security"
+	"example.com/app/security/securitytest"
+)
+
+func TestBillingController(t *testing.T) {
+	securitytest.Setup(t)
+	srv := dygotest.New(&dygo.Module{
+		Name:        "test",
+		Imports:     []*dygo.Module{security.Module},
+		Controllers: []dygo.Provider{dygo.Provide(NewBillingController)},
+	}).CompileHTTP(t)
+	var out BillingHelloOut
+	srv.GET("/billing").Do(t).Status(t, 401)
+	srv.GET("/billing").With(securitytest.User("7", "user")).Do(t).Status(t, 200).JSON(t, &out)
+}

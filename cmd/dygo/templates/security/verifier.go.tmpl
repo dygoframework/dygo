@@ -1,0 +1,345 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"crypto"
+	"crypto/ecdsa"
+	"crypto/elliptic"
+	"crypto/rsa"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"io"
+	"log/slog"
+	"math/big"
+	"net/http"
+	"slices"
+	"strings"
+	"sync"
+	"time"
+
+	"{{.Framework}}"
+)
+
+// Verifier checks the access tokens of an identity provider (Keycloak,
+// Auth0, Okta, Entra ID, Google), configured by its issuer URL. It reads the
+// provider's keys from its OpenID discovery document and accepts RS256 and
+// ES256 tokens from that issuer, for this API's audience.
+type Verifier struct {
+	cfg    *Config
+	client *http.Client
+	log    *slog.Logger
+	now    func() time.Time
+	cache  *tokenCache
+
+	mu      sync.Mutex // guards the fields below; never held during a fetch
+	keys    map[string]crypto.PublicKey // kid -> key
+	jwksURI string
+	fetched time.Time // last successful key fetch
+	tried   time.Time // last fetch for an unknown or old key, to fetch at most once a minute
+}
+
+const (
+	keysMaxAge   = time.Hour   // keys are fetched again after an hour
+	keysMinDelay = time.Minute // a token with an unknown kid fetches again, at most once a minute
+)
+
+// NewVerifier loads the provider's keys. In production a provider that
+// cannot be reached fails the boot; elsewhere it logs a warning and tries
+// again on the next token.
+func NewVerifier(ctx context.Context, cfg *Config, log dygo.Optional[*slog.Logger]) (*Verifier, error) {
+	v := &Verifier{cfg: cfg, client: &http.Client{Timeout: 10 * time.Second}, log: log.OrElse(slog.Default()), now: time.Now, cache: newTokenCache()}
+	switch {
+	case cfg.IssuerURL == "" && cfg.Production():
+		return nil, errors.New("OAUTH_ISSUER_URL is required")
+	case cfg.IssuerURL == "":
+		v.log.Warn("OAUTH_ISSUER_URL is not set; every token is refused")
+		return v, nil
+	case cfg.Production() && !strings.HasPrefix(cfg.IssuerURL, "https://"):
+		return nil, errors.New("OAUTH_ISSUER_URL must use https in production")
+	case cfg.Audience == "" && cfg.Production():
+		return nil, errors.New("OAUTH_AUDIENCE is required in production: tokens issued for other apps must be refused")
+	case cfg.Audience == "":
+		v.log.Warn("OAUTH_AUDIENCE is not set; tokens issued for any app of the provider are accepted")
+	}
+	if err := v.refresh(ctx); err != nil {
+		if cfg.Production() {
+			return nil, fmt.Errorf("loading the keys of %s: %w", cfg.IssuerURL, err)
+		}
+		v.log.Warn("cannot load the identity provider's keys; trying again on the next token", "issuer", cfg.IssuerURL, "err", err)
+		return v, nil
+	}
+	v.log.Info("tokens checked against the identity provider", "issuer", cfg.IssuerURL)
+	return v, nil
+}
+
+// Verify checks the signature, issuer, audience and dates of token, and
+// returns its user. "alg": "none", HS256 and any other algorithm are refused,
+// which closes the key confusion attack.
+func (v *Verifier) Verify(ctx context.Context, token string) (Principal, error) {
+	now := v.now()
+	if p, ok := v.cache.get(token, now); ok {
+		return p, nil
+	}
+	parts := strings.Split(token, ".")
+	if len(parts) != 3 || v.cfg.IssuerURL == "" {
+		return Principal{}, errToken
+	}
+	var header struct {
+		Alg string `json:"alg"`
+		Kid string `json:"kid"`
+	}
+	if err := decodeSegment(parts[0], &header); err != nil {
+		return Principal{}, errToken
+	}
+	sig, err := b64.DecodeString(parts[2])
+	if err != nil {
+		return Principal{}, errToken
+	}
+	key, err := v.key(ctx, header.Kid)
+	if err != nil {
+		return Principal{}, err
+	}
+	if err := verifySignature(header.Alg, key, parts[0]+"."+parts[1], sig); err != nil {
+		return Principal{}, err
+	}
+	var c map[string]any
+	if err := decodeSegment(parts[1], &c); err != nil {
+		return Principal{}, errToken
+	}
+	if err := v.checkClaims(c); err != nil {
+		return Principal{}, err
+	}
+	sub, _ := c["sub"].(string)
+	email, _ := c["email"].(string)
+	p := Principal{
+		Subject:     sub,
+		Email:       email,
+		Roles:       stringList(claimPath(c, v.cfg.RolesClaim)),
+		Authorities: append(stringList(c["scope"]), stringList(c["scp"])...),
+		Claims:      c,
+	}
+	exp, _ := c["exp"].(float64) // checkClaims made sure it is there
+	v.cache.put(token, p, time.Unix(int64(exp), 0).Add(clockSkew), now)
+	return p, nil
+}
+
+func (v *Verifier) checkClaims(c map[string]any) error {
+	now := v.now()
+	iss, _ := c["iss"].(string)
+	sub, _ := c["sub"].(string)
+	exp, hasExp := c["exp"].(float64)
+	nbf, hasNbf := c["nbf"].(float64)
+	switch {
+	case strings.TrimSuffix(iss, "/") != strings.TrimSuffix(v.cfg.IssuerURL, "/"):
+		return errors.New("wrong issuer")
+	case v.cfg.Audience != "" && !slices.Contains(stringList(c["aud"]), v.cfg.Audience):
+		return errors.New("token not issued for this API (aud)")
+	case !hasExp || now.Add(-clockSkew).Unix() >= int64(exp):
+		return errors.New("token expired")
+	case hasNbf && now.Add(clockSkew).Unix() < int64(nbf):
+		return errors.New("token not valid yet (nbf)")
+	case sub == "":
+		return errToken
+	}
+	return nil
+}
+
+// key returns the key for kid, fetching the keys again when they are old or
+// kid is unknown (the provider rotated its keys).
+// One request fetches; the others go on with the keys they have, so a slow
+// provider never holds up every request.
+func (v *Verifier) key(ctx context.Context, kid string) (crypto.PublicKey, error) {
+	now := v.now()
+	v.mu.Lock()
+	key, ok := v.keys[kid]
+	due := (!ok || now.Sub(v.fetched) > keysMaxAge) && now.Sub(v.tried) >= keysMinDelay
+	if due {
+		v.tried = now
+	}
+	v.mu.Unlock()
+	if due {
+		if err := v.refresh(ctx); err != nil {
+			v.log.WarnContext(ctx, "cannot load the identity provider's keys", "issuer", v.cfg.IssuerURL, "err", err)
+		}
+		v.mu.Lock()
+		key, ok = v.keys[kid]
+		v.mu.Unlock()
+	}
+	if !ok {
+		return nil, fmt.Errorf("unknown key %q", kid)
+	}
+	return key, nil
+}
+
+// refresh reads the discovery document once, then the keys. It runs without
+// v.mu, so requests keep using the old keys meanwhile.
+func (v *Verifier) refresh(ctx context.Context) error {
+	v.mu.Lock()
+	uri := v.jwksURI
+	v.mu.Unlock()
+	if uri == "" {
+		var doc struct {
+			Issuer  string `json:"issuer"`
+			JWKSURI string `json:"jwks_uri"`
+		}
+		if err := v.getJSON(ctx, strings.TrimSuffix(v.cfg.IssuerURL, "/")+"/.well-known/openid-configuration", &doc); err != nil {
+			return err
+		}
+		if strings.TrimSuffix(doc.Issuer, "/") != strings.TrimSuffix(v.cfg.IssuerURL, "/") {
+			return fmt.Errorf("the discovery document names issuer %q, not OAUTH_ISSUER_URL", doc.Issuer)
+		}
+		if doc.JWKSURI == "" {
+			return errors.New("the discovery document has no jwks_uri")
+		}
+		uri = doc.JWKSURI
+	}
+	var set struct {
+		Keys []jwk `json:"keys"`
+	}
+	if err := v.getJSON(ctx, uri, &set); err != nil {
+		return err
+	}
+	keys := map[string]crypto.PublicKey{}
+	for _, k := range set.Keys {
+		if k.Use != "" && k.Use != "sig" {
+			continue
+		}
+		if pub, err := k.publicKey(); err == nil {
+			keys[k.Kid] = pub
+		}
+	}
+	if len(keys) == 0 {
+		return errors.New("no RSA or EC signing keys in " + uri)
+	}
+	v.mu.Lock()
+	v.jwksURI, v.keys, v.fetched = uri, keys, v.now()
+	v.mu.Unlock()
+	return nil
+}
+
+func (v *Verifier) getJSON(ctx context.Context, url string, out any) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodGet, url, nil)
+	if err != nil {
+		return err
+	}
+	res, err := v.client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer func() { _ = res.Body.Close() }()
+	if res.StatusCode != http.StatusOK {
+		return fmt.Errorf("GET %s: %s", url, res.Status)
+	}
+	return json.NewDecoder(io.LimitReader(res.Body, 1<<20)).Decode(out)
+}
+
+// jwk is one key of a JSON Web Key Set.
+type jwk struct {
+	Kty string `json:"kty"`
+	Kid string `json:"kid"`
+	Use string `json:"use"`
+	N   string `json:"n"`
+	E   string `json:"e"`
+	Crv string `json:"crv"`
+	X   string `json:"x"`
+	Y   string `json:"y"`
+}
+
+func (k jwk) publicKey() (crypto.PublicKey, error) {
+	num := func(s string) (*big.Int, error) {
+		b, err := b64.DecodeString(s)
+		return new(big.Int).SetBytes(b), err
+	}
+	switch k.Kty {
+	case "RSA":
+		n, err1 := num(k.N)
+		e, err2 := num(k.E)
+		if err1 != nil || err2 != nil || n.BitLen() < 2048 || !e.IsInt64() {
+			return nil, errors.New("bad RSA key")
+		}
+		return &rsa.PublicKey{N: n, E: int(e.Int64())}, nil
+	case "EC":
+		if k.Crv != "P-256" {
+			return nil, errors.New("unsupported curve " + k.Crv)
+		}
+		x, err1 := num(k.X)
+		y, err2 := num(k.Y)
+		if err1 != nil || err2 != nil {
+			return nil, errors.New("bad EC key")
+		}
+		// The parser refuses a point that is not on the curve.
+		raw := append([]byte{4}, append(x.FillBytes(make([]byte, 32)), y.FillBytes(make([]byte, 32))...)...)
+		pub, err := ecdsa.ParseUncompressedPublicKey(elliptic.P256(), raw)
+		if err != nil {
+			return nil, err
+		}
+		return pub, nil
+	}
+	return nil, errors.New("unsupported key type " + k.Kty)
+}
+
+func verifySignature(alg string, key crypto.PublicKey, signed string, sig []byte) error {
+	sum := sha256.Sum256([]byte(signed))
+	switch k := key.(type) {
+	case *rsa.PublicKey:
+		if alg == "RS256" && rsa.VerifyPKCS1v15(k, crypto.SHA256, sum[:], sig) == nil {
+			return nil
+		}
+	case *ecdsa.PublicKey:
+		if alg == "ES256" && len(sig) == 64 &&
+			ecdsa.Verify(k, sum[:], new(big.Int).SetBytes(sig[:32]), new(big.Int).SetBytes(sig[32:])) {
+			return nil
+		}
+	}
+	return errToken
+}
+
+func decodeSegment(s string, out any) error {
+	b, err := base64.RawURLEncoding.DecodeString(s)
+	if err != nil {
+		return err
+	}
+	return json.Unmarshal(b, out)
+}
+
+// claimPath follows a dotted path such as realm_access.roles.
+func claimPath(c map[string]any, path string) any {
+	var v any = c
+	for _, part := range strings.Split(path, ".") {
+		m, ok := v.(map[string]any)
+		if !ok {
+			return nil
+		}
+		v = m[part]
+	}
+	return v
+}
+
+// stringList reads a claim that is a list of strings or a space separated
+// string, as "scope" is.
+func stringList(v any) []string {
+	switch v := v.(type) {
+	case string:
+		return strings.Fields(v)
+	case []any:
+		var out []string
+		for _, s := range v {
+			if s, ok := s.(string); ok {
+				out = append(out, s)
+			}
+		}
+		return out
+	}
+	return nil
+}
+
+var (
+	b64      = base64.RawURLEncoding
+	errToken = errors.New("malformed or forged token")
+)
+
+// clockSkew tolerates small clock differences with the provider.
+const clockSkew = 30 * time.Second

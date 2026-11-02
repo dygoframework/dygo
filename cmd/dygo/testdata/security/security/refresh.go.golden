@@ -1,0 +1,162 @@
+package security
+
+import (
+	"context"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"errors"
+	"log/slog"
+	"sync"
+	"time"
+
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/errs"
+	"github.com/dygoframework/dygo/sql"
+)
+
+// RefreshToken is one refresh token, stored by the SHA-256 of its value, so
+// a leaked table does not leak usable tokens.
+type RefreshToken struct {
+	Hash      string    `db:"hash,pk"`
+	Family    string    `db:"family"` // every token rotated from the same login
+	UserID    int       `db:"user_id"`
+	ExpiresAt time.Time `db:"expires_at"`
+	Used      bool      `db:"used"`
+}
+
+// RefreshFamily is the tokens of one login. Revoking it ends the session:
+// logout, or a token used twice.
+type RefreshFamily struct {
+	ID      string `db:"id,pk"`
+	UserID  int    `db:"user_id"`
+	Revoked bool   `db:"revoked"`
+}
+
+// RefreshTokens issues, rotates and revokes refresh tokens. They are random
+// opaque strings, not JWTs, valid for AUTH_REFRESH_TTL. Each use gives a new
+// one (rotation); using an old one again revokes the whole login, which
+// catches a stolen token.
+type RefreshTokens struct {
+	db       *sql.DB    // nil for memory://
+	mu       sync.Mutex // memory:// only: spends one token at a time
+	tokens   *sql.Repository[RefreshToken]
+	families *sql.Repository[RefreshFamily]
+	ttl      time.Duration
+	log      *slog.Logger
+	now      func() time.Time
+}
+
+// NewRefreshTokens keeps the tokens where DATABASE_URL says: in memory, or
+// in the refresh_tokens and refresh_families tables.
+func NewRefreshTokens(cfg *Config, db dygo.Optional[*sql.DB], log dygo.Optional[*slog.Logger]) (*RefreshTokens, error) {
+	d := db.OrElse(sql.Memory())
+	tokens, err := sql.NewRepository[RefreshToken](d, "refresh_tokens")
+	if err != nil {
+		return nil, err
+	}
+	families, err := sql.NewRepository[RefreshFamily](d, "refresh_families")
+	if err != nil {
+		return nil, err
+	}
+	var sqlDB *sql.DB
+	if !d.IsMemory() {
+		sqlDB = d
+	}
+	return &RefreshTokens{db: sqlDB, tokens: tokens, families: families, ttl: cfg.RefreshTTL, log: log.OrElse(slog.Default()), now: time.Now}, nil
+}
+
+var errRefresh = errs.Unauthorized("invalid refresh token")
+
+// Issue starts a login for userID and returns its first refresh token.
+func (r *RefreshTokens) Issue(ctx context.Context, userID int) (string, error) {
+	family := random()
+	if err := r.families.Create(ctx, &RefreshFamily{ID: family, UserID: userID}); err != nil {
+		return "", err
+	}
+	return r.next(ctx, family, userID)
+}
+
+// Rotate spends token and returns the user and the next token of the login.
+// Two requests racing with the same token cannot both win, even on two app
+// instances: the token is marked used only if it is not used yet, and the
+// loser is treated as a reuse.
+func (r *RefreshTokens) Rotate(ctx context.Context, token string) (int, string, error) {
+	t, err := r.tokens.Find(ctx, hash(token))
+	if errors.Is(err, sql.ErrNotFound) {
+		return 0, "", errRefresh
+	} else if err != nil {
+		return 0, "", err
+	}
+	f, err := r.families.Find(ctx, t.Family)
+	if err != nil {
+		return 0, "", err
+	}
+	switch {
+	case f.Revoked || r.now().After(t.ExpiresAt):
+		return 0, "", errRefresh
+	}
+	spent, err := r.spend(ctx, t.Hash)
+	if err != nil {
+		return 0, "", err
+	}
+	if !spent {
+		// Someone used this token before: the user or a thief has a copy.
+		// End the login for both.
+		r.log.WarnContext(ctx, "refresh token used twice; login revoked", "sub", t.UserID)
+		if err := r.families.Patch(ctx, f.ID, sql.Set{"revoked": true}); err != nil {
+			return 0, "", err
+		}
+		return 0, "", errRefresh
+	}
+	next, err := r.next(ctx, t.Family, t.UserID)
+	return t.UserID, next, err
+}
+
+// spend marks a token used, and reports false when it was used already. In
+// the database it is one conditional UPDATE, so it needs no lock.
+func (r *RefreshTokens) spend(ctx context.Context, hash string) (bool, error) {
+	if r.db != nil {
+		res, err := r.db.Exec(ctx, "UPDATE "+r.tokens.Table()+" SET used = ? WHERE hash = ? AND used = ?", true, hash, false)
+		if err != nil {
+			return false, err
+		}
+		n, err := res.RowsAffected()
+		return n == 1, err
+	}
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	t, err := r.tokens.Find(ctx, hash)
+	if err != nil || t.Used {
+		return false, err
+	}
+	return true, r.tokens.Patch(ctx, hash, sql.Set{"used": true})
+}
+
+// Revoke ends the login of token, for logout. An unknown token is ignored.
+func (r *RefreshTokens) Revoke(ctx context.Context, token string) error {
+	t, err := r.tokens.Find(ctx, hash(token))
+	if errors.Is(err, sql.ErrNotFound) {
+		return nil
+	} else if err != nil {
+		return err
+	}
+	return r.families.Patch(ctx, t.Family, sql.Set{"revoked": true})
+}
+
+func (r *RefreshTokens) next(ctx context.Context, family string, userID int) (string, error) {
+	token := random()
+	err := r.tokens.Create(ctx, &RefreshToken{Hash: hash(token), Family: family, UserID: userID, ExpiresAt: r.now().Add(r.ttl)})
+	return token, err
+}
+
+func random() string {
+	b := make([]byte, 32)
+	_, _ = rand.Read(b) // crypto/rand.Read never fails
+	return base64.RawURLEncoding.EncodeToString(b)
+}
+
+func hash(token string) string {
+	sum := sha256.Sum256([]byte(token))
+	return base64.RawURLEncoding.EncodeToString(sum[:])
+}

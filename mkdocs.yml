@@ -1,0 +1,63 @@
+# Docs site: `pip install mkdocs-material==9.6.*` then `mkdocs serve`, or
+# `make docs` to build into site/. The pages are the Markdown files in docs/,
+# which also read fine on GitHub.
+site_name: Dygo
+site_description: A modular framework for Go
+site_url: https://dygoframework.github.io/dygo/
+repo_url: https://github.com/dygoframework/dygo
+repo_name: dygoframework/dygo
+edit_uri: edit/main/docs/
+docs_dir: docs
+strict: true
+
+theme:
+  name: material
+  features:
+    - navigation.sections
+    - navigation.top
+    - content.code.copy
+    - search.suggest
+  palette:
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      toggle: { icon: material/brightness-7, name: Dark mode }
+    - media: "(prefers-color-scheme: dark)"
+      scheme: slate
+      toggle: { icon: material/brightness-4, name: Light mode }
+
+markdown_extensions:
+  - admonition
+  - tables
+  - toc: { permalink: true }
+  - pymdownx.highlight
+  - pymdownx.superfences
+
+# docs/README.md is the GitHub index of the phase plans; index.md is the site's.
+exclude_docs: |
+  README.md
+
+not_in_nav: |
+  phase-*.md
+
+nav:
+  - Home: index.md
+  - Getting started: getting-started.md
+  - Guides:
+      - Modules and providers: guide-core.md
+      - HTTP: guide-http.md
+      - Pipeline: guide-pipeline.md
+      - Production: guide-production.md
+      - CLI: guide-cli.md
+      - Transports: guide-transports.md
+      - Testing and benchmarks: guide-testing.md
+  - Recipes:
+      - Authentication: recipes/auth.md
+      - Security: recipes/security.md
+      - SQL databases: recipes/sql.md
+      - Testing: recipes/testing.md
+  - Project:
+      - Decisions: decisions.md
+      - Benchmarks: benchmarks.md
+      - Changelog: changelog.md
+      - Security: security.md
+      - OWASP Top 10: owasp.md

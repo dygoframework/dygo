@@ -1,0 +1,114 @@
+package {{.Pkg}}
+
+import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/base64"
+	"encoding/json"
+	"errors"
+	"log/slog"
+	"strings"
+	"time"
+)
+
+// claims is the payload of an access token.
+type claims struct {
+	Principal
+	Issuer    string `json:"iss"`
+	IssuedAt  int64  `json:"iat"`
+	ExpiresAt int64  `json:"exp"`
+}
+
+// Tokens issues and verifies access tokens: JWTs signed with HMAC-SHA256.
+type Tokens struct {
+	secret []byte
+	ttl    time.Duration
+	issuer string
+	now    func() time.Time
+	cache  *tokenCache
+}
+
+// NewTokens reads the secret from cfg. Without one it makes a random secret,
+// so tokens stop working on restart, except in production, where it fails.
+func NewTokens(cfg *Config) (*Tokens, error) {
+	secret := []byte(cfg.Secret)
+	switch {
+	case len(secret) == 0 && cfg.Production():
+		return nil, errors.New("AUTH_SECRET is required in production")
+	case len(secret) == 0:
+		secret = make([]byte, 32)
+		if _, err := rand.Read(secret); err != nil {
+			return nil, err
+		}
+		slog.Warn("AUTH_SECRET is not set; using a random secret, so tokens stop working on restart")
+	case len(secret) < 32:
+		return nil, errors.New("AUTH_SECRET must be at least 32 characters")
+	}
+	return &Tokens{secret: secret, ttl: cfg.TokenTTL, issuer: cfg.Issuer, now: time.Now, cache: newTokenCache()}, nil
+}
+
+var (
+	b64       = base64.RawURLEncoding
+	jwtHeader = b64.EncodeToString([]byte(`{"alg":"HS256","typ":"JWT"}`))
+	errToken  = errors.New("malformed or forged token")
+)
+
+// clockSkew tolerates small clock differences between servers.
+const clockSkew = 30 * time.Second
+
+// Issue returns an access token for p and when it expires.
+func (t *Tokens) Issue(p Principal) (string, time.Time, error) {
+	now := t.now()
+	exp := now.Add(t.ttl)
+	payload, err := json.Marshal(claims{Principal: p, Issuer: t.issuer, IssuedAt: now.Unix(), ExpiresAt: exp.Unix()})
+	if err != nil {
+		return "", time.Time{}, err
+	}
+	unsigned := jwtHeader + "." + b64.EncodeToString(payload)
+	return unsigned + "." + t.sign(unsigned), exp, nil
+}
+
+// Verify checks the signature, the issuer and the expiry, and returns the
+// user. Only HS256 tokens with this exact header are accepted, so "alg":
+// "none" and algorithm swaps are refused.
+func (t *Tokens) Verify(token string) (Principal, error) {
+	now := t.now()
+	if p, ok := t.cache.get(token, now); ok {
+		return p, nil
+	}
+	header, rest, ok1 := strings.Cut(token, ".")
+	payload, sig, ok2 := strings.Cut(rest, ".")
+	if !ok1 || !ok2 || header != jwtHeader {
+		return Principal{}, errToken
+	}
+	if !hmac.Equal([]byte(sig), []byte(t.sign(header+"."+payload))) {
+		return Principal{}, errToken
+	}
+	data, err := b64.DecodeString(payload)
+	if err != nil {
+		return Principal{}, errToken
+	}
+	var c claims
+	if err := json.Unmarshal(data, &c); err != nil {
+		return Principal{}, errToken
+	}
+	switch {
+	case c.Issuer != t.issuer:
+		return Principal{}, errors.New("wrong issuer")
+	case now.Add(-clockSkew).Unix() >= c.ExpiresAt:
+		return Principal{}, errors.New("token expired")
+	case now.Add(clockSkew).Unix() < c.IssuedAt:
+		return Principal{}, errors.New("token issued in the future")
+	case c.Subject == "":
+		return Principal{}, errToken
+	}
+	t.cache.put(token, c.Principal, time.Unix(c.ExpiresAt, 0).Add(clockSkew), now)
+	return c.Principal, nil
+}
+
+func (t *Tokens) sign(s string) string {
+	m := hmac.New(sha256.New, t.secret)
+	m.Write([]byte(s))
+	return b64.EncodeToString(m.Sum(nil))
+}

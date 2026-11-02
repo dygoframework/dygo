@@ -1,0 +1,30 @@
+// Package {{.Pkg}} secures the API as an OAuth2
+// resource server: every route needs a valid bearer token from the identity
+// provider in OAUTH_ISSUER_URL, unless Rules (rules.go) or Public() opens
+// it. The provider (Keycloak, Auth0, Okta, Entra ID, ...) handles sign up
+// and login; this API only checks its tokens.
+//
+//	GET /auth/me
+//	r.Delete("/{id}", dygo.Handle(c.Delete), {{.Pkg}}.Roles("admin"))
+//	err := {{.Pkg}}.Require(ctx, {{.Pkg}}.HasAuthority("orders:cancel"))
+//	p, _ := {{.Pkg}}.CurrentUser(ctx)
+package {{.Pkg}}
+
+import (
+	"{{.Framework}}"
+	"{{.Framework}}/config"
+)
+
+// Module is global, so every module can use Public, Roles, Require and
+// CurrentUser. Its guard protects every route.
+var Module = &dygo.Module{
+	Name:    "{{.Kebab}}",
+	Global:  true,
+	Imports: []*dygo.Module{config.ForFeature[Config](config.Files(".env.local", ".env"))},
+	Providers: []dygo.Provider{
+		dygo.Provide(NewVerifier),
+		dygo.Provide(NewGuard, dygo.Group(dygo.AppGuards)),
+	},
+	Controllers: []dygo.Provider{dygo.Provide(NewController)},
+	Exports:     []dygo.Token{dygo.TypeOf[*Verifier]()},
+}

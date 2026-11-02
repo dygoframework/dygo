@@ -1,0 +1,35 @@
+package {{.Pkg}}
+
+import (
+	"testing"
+
+	"{{.Framework}}"
+	"{{.Framework}}/dygotest"
+	"{{.Framework}}/validate"
+)
+
+func TestAuth(t *testing.T) {
+	srv := dygotest.New(&dygo.Module{Name: "app", Imports: []*dygo.Module{Module}}).
+		With(validate.Use(validate.Methods())).CompileHTTP(t)
+	creds := Credentials{Email: "ada@example.com", Password: "correct horse battery"}
+
+	var u User
+	srv.POST("/{{.Kebab}}/register").JSON(creds).Do(t).Status(t, 201).JSON(t, &u)
+	if u.ID == 0 || u.Email != creds.Email {
+		t.Fatalf("registered %+v", u)
+	}
+	srv.POST("/{{.Kebab}}/register").JSON(creds).Do(t).Status(t, 409)
+	srv.POST("/{{.Kebab}}/register").JSON(Credentials{Email: "nope", Password: "short"}).Do(t).Status(t, 400)
+
+	srv.POST("/{{.Kebab}}/login").JSON(Credentials{Email: creds.Email, Password: "wrong password"}).Do(t).Status(t, 401)
+	var tok TokenOut
+	srv.POST("/{{.Kebab}}/login").JSON(creds).Do(t).Status(t, 200).JSON(t, &tok)
+
+	srv.GET("/{{.Kebab}}/me").Do(t).Status(t, 401)
+	srv.GET("/{{.Kebab}}/me").Header("Authorization", "Bearer "+tok.AccessToken+"x").Do(t).Status(t, 401)
+	var me User
+	srv.GET("/{{.Kebab}}/me").Header("Authorization", "Bearer "+tok.AccessToken).Do(t).Status(t, 200).JSON(t, &me)
+	if me.ID != u.ID {
+		t.Fatalf("me %+v", me)
+	}
+}

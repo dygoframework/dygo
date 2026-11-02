@@ -1,0 +1,39 @@
+package {{.Pkg}}
+
+import (
+	"context"
+	"log/slog"
+
+	"{{.Framework}}/queue"
+)
+
+// JobName is the name producers add the job under:
+//
+//	q.Add(ctx, {{.Pkg}}.JobName, {{.Pkg}}.Payload{ID: id})
+const JobName = "{{.Kebab}}"
+
+// Payload is the job's data, stored as JSON.
+type Payload struct {
+	ID string `json:"id"`
+}
+
+// Processor handles {{.Kebab}} jobs. Every provider with a Process method is
+// found by queue.Module at startup.
+type Processor struct{}
+
+// NewProcessor is the constructor; add the services it needs as parameters.
+func NewProcessor() *Processor {
+	return &Processor{}
+}
+
+// Process registers the handlers.
+func (p *Processor) Process(r *queue.Registry) {
+	queue.Handle(r, JobName, p.handle)
+}
+
+// handle does the work. An error retries the job; wrap it with
+// queue.SkipRetry to fail at once.
+func (p *Processor) handle(ctx context.Context, in Payload) error {
+	slog.InfoContext(ctx, "{{.Kebab}}: processing", "id", in.ID)
+	return nil
+}

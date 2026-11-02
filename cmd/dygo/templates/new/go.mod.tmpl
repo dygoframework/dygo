@@ -1,0 +1,14 @@
+module {{.Module}}
+
+go 1.27.0
+{{- if .Replace}}
+
+require (
+	{{.Framework}} v0.0.0
+	{{.Framework}}/sql v0.0.0
+)
+
+replace {{.Framework}} => {{.Replace}}
+
+replace {{.Framework}}/sql => {{.Replace}}/sql
+{{- end}}

@@ -1,0 +1,7 @@
+// Package modules holds the feature modules, one package each. Add one with
+//
+//	dygo g entity User && dygo g crud User
+//
+// which creates internal/modules/users and imports it in AppModule
+// (app.module.go).
+package modules
