@@ -1,54 +1,113 @@
 # Dygo
 
-A modular framework for Go: modules, dependency injection, lifecycle hooks, controllers with typed handlers, and the guard, interceptor, pipe and filter pipeline with typed metadata and validation. It stays idiomatic Go: constructors, `context.Context`, `error` values, no code generation required.
+A modular, secure-by-default web framework for Go. Modules, dependency
+injection and typed handlers, on plain `net/http`, with a core that uses only
+the standard library.
 
-> Status: phases 0 to 6 of 7 done (core container, modules, HTTP layer, pipeline, production essentials, the `dygo` CLI, transports and background work). Phase 7 (v1.0) is in progress. Start with [getting started](docs/getting-started.md). Plans: [PLAN.md](PLAN.md) and [docs/](docs/README.md).
+```sh
+go install github.com/dygoframework/dygo/cmd/dygo@latest
+dygo new shop -security
+cd shop && dygo start
+```
+
+That is a running API on <http://localhost:9900>, with login, roles, security
+headers, CORS, rate limits and OpenAPI docs at `/docs`. Requires Go 1.27+.
+
+## Secure by default
+
+Dygo is checked against the [OWASP Top 10](docs/owasp.md) on every change, and
+the safe choice is the one you get without asking:
+
+- **Deny by default.** With `dygo g security` (or `dygo new -security`),
+  every route needs a logged-in user unless you open it. Roles, authorities
+  and owner checks are one line each.
+- **Tokens done right.** Signed tokens with a fixed algorithm (`alg: none`
+  and algorithm swaps are refused), PBKDF2 passwords, rotating refresh tokens
+  stored hashed, and reuse of an old refresh token ends the login. Or use
+  Keycloak, Auth0, Okta or Entra ID with `-oidc`.
+- **Strict input.** Unknown JSON fields, trailing data and oversized bodies
+  are refused before your code runs. The request binder is fuzzed.
+- **No leaks.** A 500 never shows the underlying error, and passwords and
+  tokens are never logged. Failed logins, denied requests and bad tokens are.
+- **Limits on.** Body size limits, login and refresh rate limits, secure
+  headers and CORS are part of a new project.
+- **Small supply chain.** The core has no third party dependencies. CI runs
+  gosec, govulncheck and fuzzing on every module, and Dependabot keeps the
+  rest current.
+
+Report a vulnerability privately, see [SECURITY.md](SECURITY.md).
+
+## Easy to use
+
+A feature is a service, a controller and a module. `dygo g resource products`
+writes one for you, or write it by hand:
 
 ```go
-var UsersModule = &dygo.Module{
-    Name:      "users",
-    Imports:   []*dygo.Module{store.Module},
-    Providers: []dygo.Provider{
-        dygo.Provide(NewStoreRepo, dygo.As[Repo]()),
-        dygo.Provide(NewUserService),
-    },
-    Exports: []dygo.Token{dygo.TypeOf[*UserService]()},
+type GetIn struct {
+    ID int `path:"id"` // "abc" is a 400 before your code runs
 }
 
-func (c *UsersController) Routes(r dygo.Router) {
-    r = r.Prefix("/users")
+func (c *Controller) Routes(r dygo.Router) {
+    r = r.Prefix("/products")
     r.Get("/{id}", dygo.Handle(c.Get))
 }
 
-type GetIn struct {
-    ID int `path:"id"`
+func (c *Controller) Get(ctx context.Context, in GetIn) (Product, error) {
+    p, ok := c.svc.Find(in.ID)
+    if !ok {
+        return Product{}, errs.NotFound("product not found")
+    }
+    return p, nil // written as JSON
 }
 
-func (c *UsersController) Get(ctx context.Context, in GetIn) (*User, error) { ... }
+var Module = &dygo.Module{
+    Name:        "products",
+    Providers:   []dygo.Provider{dygo.Provide(NewService)},
+    Controllers: []dygo.Provider{dygo.Provide(NewController)},
+}
 
-app, err := dygo.Create(ctx, AppModule, dygo.WithGlobalPrefix("/api"))
-err = app.Listen(ctx, ":9900")
+func main() {
+    ctx := context.Background()
+    app, err := dygo.Create(ctx, &dygo.Module{Name: "app", Imports: []*dygo.Module{Module}})
+    if err != nil {
+        log.Fatal(err) // every wiring problem at once: missing provider, cycle, route clash
+    }
+    log.Fatal(app.Listen(ctx, ":9900")) // graceful shutdown on Ctrl+C
+}
 ```
 
-## Try it
+Constructors are injected, inputs are bound from tags, outputs are JSON, and
+the whole app is checked when it starts. Testing is just as short:
 
-```sh
-go test -race ./...
-go run ./examples/worker     # Ctrl+C to watch shutdown hooks
-(cd examples/http-users && go run .)  # users API on :9900, docs at /docs
-(cd examples/academy && go test ./...)  # a course platform backend, used to dogfood v1.0
-docker compose -f examples/http-users/compose.yaml up --build  # with Jaeger traces on :16686
+```go
+srv := dygotest.New(products.Module).CompileHTTP(t)
+srv.GET("/products/abc").Do(t).Status(t, 400)
 ```
 
-Requires Go 1.27+. The core has no third party dependencies.
+## Fast
 
-## Performance
+Typed JSON handlers cost the same as hand written `net/http`, and are about
+2x faster than Gin and Huma, with the fewest allocations:
 
-Typed JSON handlers cost about the same as hand written `net/http` and are faster than chi, Gin and Huma on the same work. Method and numbers: [benchmarks/](benchmarks/README.md).
+| `POST /users/42` with JSON in and out | Time per request | Allocations |
+|---|---|---|
+| net/http (hand written) | 2.49 µs | 13 |
+| **Dygo** | **2.51 µs** | **11** |
+| chi | 3.23 µs | 16 |
+| Gin | 4.63 µs | 21 |
+| Huma | 5.39 µs | 20 |
 
-## Security
+Method, all scenarios and raw results: [benchmarks/](benchmarks/README.md).
 
-See [SECURITY.md](SECURITY.md) for how to report a vulnerability.
+## Learn more
+
+- [Getting started](docs/getting-started.md): a tested JSON API in ten minutes
+- Guides: [core](docs/guide-core.md), [HTTP](docs/guide-http.md),
+  [pipeline](docs/guide-pipeline.md), [production](docs/guide-production.md),
+  [CLI](docs/guide-cli.md), [transports](docs/guide-transports.md)
+- Recipes: [security](docs/recipes/security.md), [SQL databases](docs/recipes/sql.md),
+  [testing](docs/recipes/testing.md)
+- Examples: [examples/](examples)
 
 ## License
 

@@ -29,6 +29,8 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 
 ### Changed
 
+- README rewritten: security by default, a short example, and the benchmark
+  summary; the build status and plan notes are gone.
 - **Breaking:** the module path is now `github.com/dygoframework/dygo` (it was
   `github.com/dygoacademy/dygo`), and the same for every sub-module. Update
   imports and `go.mod` files.
