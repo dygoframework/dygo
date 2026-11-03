@@ -30,6 +30,10 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 - `dygo g security` (and `dygo new -security`) sets `BearerAuth: true` in the
   app's `openapi.Options`, so `/docs` has an Authorize button for the access
   token.
+- `dygo g security` writes a random `AUTH_SECRET` into `.env` (not
+  `.env.example`), so tokens survive restarts from the start. The
+  "AUTH_SECRET is required in production" and "at least 32 characters" errors
+  of `g security` and `g auth` now say to run `openssl rand -hex 32`.
 
 ### Fixed
 
