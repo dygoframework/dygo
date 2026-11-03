@@ -3,7 +3,7 @@
 # which also read fine on GitHub.
 site_name: Dygo
 site_description: A modular framework for Go
-site_url: https://dygoframework.github.io/dygo/
+site_url: https://dygoframework.com/
 repo_url: https://github.com/dygoframework/dygo
 repo_name: dygoframework/dygo
 edit_uri: edit/main/docs/
@@ -12,18 +12,34 @@ strict: true
 
 theme:
   name: material
+  font:
+    text: Inter
+    code: JetBrains Mono
   features:
     - navigation.sections
+    - navigation.indexes
     - navigation.top
+    - navigation.footer
+    - navigation.instant
+    - toc.follow
     - content.code.copy
     - search.suggest
+    - search.highlight
+  # Black and yellow. Follows the system setting; the toggle switches dark and light.
   palette:
-    - media: "(prefers-color-scheme: light)"
-      scheme: default
-      toggle: { icon: material/brightness-7, name: Dark mode }
     - media: "(prefers-color-scheme: dark)"
       scheme: slate
+      primary: black
+      accent: yellow
       toggle: { icon: material/brightness-4, name: Light mode }
+    - media: "(prefers-color-scheme: light)"
+      scheme: default
+      primary: black
+      accent: yellow
+      toggle: { icon: material/brightness-7, name: Dark mode }
+
+extra_css:
+  - assets/theme.css
 
 markdown_extensions:
   - admonition

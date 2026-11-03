@@ -1,0 +1,88 @@
+/* Dygo docs theme: black and yellow, plain and readable. */
+:root {
+  --dygo-yellow: #facc15;
+  --dygo-yellow-dark: #a16207;
+  --md-text-font-features: "cv11";
+}
+
+/* Light: white page, black header, dark yellow links (readable on white). */
+[data-md-color-scheme="default"][data-md-color-primary="black"] {
+  --md-primary-fg-color: #000;
+  --md-primary-bg-color: #fff;
+  --md-accent-fg-color: var(--dygo-yellow-dark);
+  --md-typeset-a-color: var(--dygo-yellow-dark);
+  --md-code-bg-color: #f6f6f6;
+}
+
+/* Dark: true black page, yellow links and accents. */
+[data-md-color-scheme="slate"][data-md-color-primary="black"] {
+  --md-hue: 0;
+  --md-default-bg-color: #000;
+  --md-default-fg-color--light: #a1a1a1;
+  --md-primary-fg-color: #000;
+  --md-primary-bg-color: #fff;
+  --md-accent-fg-color: var(--dygo-yellow);
+  --md-typeset-a-color: var(--dygo-yellow);
+  --md-code-bg-color: #0f0f0f;
+  --md-footer-bg-color: #000;
+  --md-footer-bg-color--dark: #000;
+  --md-default-fg-color: #ededed;
+  --md-typeset-color: #ededed;
+}
+
+/* Thin borders instead of shadows, like a plain docs site. */
+.md-header,
+.md-header--shadow {
+  box-shadow: none;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.12);
+}
+.md-footer {
+  border-top: 1px solid var(--md-default-fg-color--lightest);
+}
+.md-header__title {
+  font-weight: 700;
+}
+
+/* Wider reading area. */
+.md-grid {
+  max-width: 1360px;
+}
+
+/* Headings: bold and tight. */
+.md-typeset h1 {
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  color: var(--md-default-fg-color);
+}
+.md-typeset h2,
+.md-typeset h3 {
+  font-weight: 700;
+  letter-spacing: -0.02em;
+}
+
+/* Sidebar: the current page gets a yellow bar. */
+.md-nav__link--active {
+  font-weight: 600;
+  box-shadow: inset 2px 0 0 var(--md-accent-fg-color);
+  padding-left: 0.5em;
+}
+.md-nav__item--section > .md-nav__link {
+  font-weight: 700;
+  color: var(--md-default-fg-color);
+}
+
+/* Code blocks: rounded with a thin border. */
+.md-typeset pre > code {
+  border-radius: 8px;
+  border: 1px solid var(--md-default-fg-color--lightest);
+}
+
+/* Search box. */
+.md-search__form {
+  border-radius: 8px;
+}
+
+/* Logo in yellow. */
+.md-header__button.md-logo {
+  color: var(--dygo-yellow);
+}

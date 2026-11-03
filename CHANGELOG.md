@@ -12,6 +12,11 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 
 ## Unreleased
 
+### Added
+
+- The docs site is published at https://dygoframework.com, with a black and
+  yellow theme in dark and light modes.
+
 ### Removed
 
 - The simple `dygo new` layout. Every project now gets the modular layout
