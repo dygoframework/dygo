@@ -25,6 +25,7 @@ Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
 UPDATE dygo.json ("security": true)
 UPDATE app.go (dygo.WithMiddleware += security.CORS())
 UPDATE app.go (dygo.WithMiddleware += middleware.SecureHeaders(middleware.SecureHeadersOptions{}))
+UPDATE app.go (openapi.Options += BearerAuth: true)
 
 Every route now needs a bearer token, unless security/rules.go or security.Public() opens it.
 Next:
