@@ -100,6 +100,8 @@ func (fakeDialect) Classify(err error) (sql.Kind, string) {
 		return sql.KindConstraint, "email"
 	case "retry":
 		return sql.KindRetryable, ""
+	case "schema":
+		return sql.KindSchema, ""
 	}
 	return sql.KindOther, ""
 }
@@ -277,6 +279,7 @@ func TestMapError(t *testing.T) {
 		{&codeErr{"fk"}, sql.ErrForeignKey, 409, "FOREIGN_KEY"},
 		{&codeErr{"null"}, sql.ErrConstraint, 422, "CONSTRAINT"},
 		{&codeErr{"retry"}, sql.ErrRetryable, 500, ""},
+		{&codeErr{"schema"}, sql.ErrSchema, 500, ""},
 	}
 	for _, c := range cases {
 		got := db.MapError(c.in)
@@ -299,6 +302,9 @@ func TestMapError(t *testing.T) {
 	var se *sql.Error
 	if errors.As(db.MapError(&codeErr{"dup"}), &se); se == nil || se.Constraint != "users_email_key" {
 		t.Fatalf("constraint = %+v", se)
+	}
+	if msg := db.MapError(&codeErr{"schema"}).Error(); !strings.Contains(msg, "dygo g migration") || !strings.Contains(msg, "dygo db migrate") {
+		t.Errorf("schema error must say how to fix it: %s", msg)
 	}
 	other := errors.New("boom")
 	if db.MapError(other) != other || db.MapError(nil) != nil {

@@ -24,6 +24,9 @@ const (
 	// KindRetryable is a serialization failure or deadlock: running the
 	// transaction again may succeed.
 	KindRetryable
+	// KindSchema is a table or column the database does not have: the
+	// migrations are behind the code.
+	KindSchema
 )
 
 // Errors that mapped errors match with errors.Is.
@@ -40,7 +43,14 @@ var (
 	// ErrRetryable means the transaction hit a serialization failure or a
 	// deadlock and may succeed if run again. It answers 500.
 	ErrRetryable = errors.New("retryable")
+	// ErrSchema means a table or column the query uses does not exist, so
+	// the database is behind the code. It answers 500, and its message says
+	// to run dygo g migration and dygo db migrate.
+	ErrSchema = errors.New("schema out of date")
 )
+
+// schemaHint ends the message of an ErrSchema error.
+const schemaHint = "the database is missing a table or column the code uses; run dygo g migration, check the new file, then dygo db migrate"
 
 func (k Kind) sentinel() error {
 	switch k {
@@ -52,6 +62,8 @@ func (k Kind) sentinel() error {
 		return ErrConstraint
 	case KindRetryable:
 		return ErrRetryable
+	case KindSchema:
+		return ErrSchema
 	}
 	return nil
 }
@@ -61,8 +73,8 @@ func (k Kind) sentinel() error {
 // (*pgconn.PgError, *mysql.MySQLError). The constraint name is logged but
 // never sent to the client.
 type Error struct {
-	// Kind is ErrNotFound, ErrDuplicate, ErrForeignKey, ErrConstraint or
-	// ErrRetryable.
+	// Kind is ErrNotFound, ErrDuplicate, ErrForeignKey, ErrConstraint,
+	// ErrRetryable or ErrSchema.
 	Kind error
 	// Constraint is the constraint or key the database named, if any.
 	Constraint string
@@ -78,6 +90,9 @@ func (e *Error) Error() string {
 	if e.Err != nil {
 		msg += ": " + e.Err.Error()
 	}
+	if e.Kind == ErrSchema {
+		msg += " (" + schemaHint + ")"
+	}
 	return msg
 }
 
@@ -91,7 +106,7 @@ func (e *Error) Unwrap() []error {
 
 // HTTPError makes Dygo's error writer answer with a fitting status instead
 // of 500: 404 for ErrNotFound, 409 for ErrDuplicate and ErrForeignKey, 422 for
-// ErrConstraint. A retryable error stays a 500.
+// ErrConstraint. A retryable or schema error stays a 500.
 func (e *Error) HTTPError() *errs.HTTPError {
 	switch e.Kind {
 	case ErrNotFound:

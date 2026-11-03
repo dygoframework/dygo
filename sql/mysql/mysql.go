@@ -115,6 +115,8 @@ func (dialect) Classify(err error) (sql.Kind, string) {
 		return sql.KindConstraint, ""
 	case 1213: // ER_LOCK_DEADLOCK
 		return sql.KindRetryable, ""
+	case 1146, 1054: // ER_NO_SUCH_TABLE, ER_BAD_FIELD_ERROR
+		return sql.KindSchema, ""
 	}
 	return sql.KindOther, ""
 }
