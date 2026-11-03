@@ -49,14 +49,15 @@ fmt:
 
 # The same tests as make test, with coverage. Every module's profile is merged
 # into coverage.out, with file paths from the repo root (what Coveralls reads).
-# The examples are left out of the numbers.
+# Left out of the numbers: the examples, generated code (the gqlgen test
+# schema) and helpers only tests use (the shared database test suite).
 MODULE := github.com/dygoframework/dygo
 cover:
 	rm -rf .cover && mkdir .cover
 	go test -race -covermode=atomic -coverprofile=.cover/root.out ./...
 	for m in $(SUBMODULES); do (cd $$m && go test -race -covermode=atomic -coverprofile=$(CURDIR)/.cover/$$(echo $$m | tr / -).out ./...) || exit 1; done
 	echo "mode: atomic" > coverage.out
-	tail -q -n +2 .cover/*.out | sed 's|^$(MODULE)/||' | grep -v '^examples/' >> coverage.out
+	tail -q -n +2 .cover/*.out | sed 's|^$(MODULE)/||' | grep -v -e '^examples/' -e '^graphql/internal/testgraph/' -e '^sql/internal/suite/' >> coverage.out
 	@awk 'NR > 1 { all += $$2; if ($$3 > 0) hit += $$2 } END { printf "coverage: %.1f%% of statements\n", 100 * hit / all }' coverage.out
 
 # Performance tests come in two kinds (docs/guide-testing.md):
