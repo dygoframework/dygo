@@ -41,7 +41,7 @@ func NewTokens(cfg *Config) (*Tokens, error) {
 	secret := []byte(cfg.Secret)
 	switch {
 	case len(secret) == 0 && cfg.AppEnv == "production":
-		return nil, errors.New("AUTH_SECRET is required in production")
+		return nil, errors.New("AUTH_SECRET is required in production: make one with openssl rand -hex 32 and set it in the environment or .env")
 	case len(secret) == 0:
 		secret = make([]byte, 32)
 		if _, err := rand.Read(secret); err != nil {
@@ -49,7 +49,7 @@ func NewTokens(cfg *Config) (*Tokens, error) {
 		}
 		slog.Warn("AUTH_SECRET is not set; using a random secret, so tokens stop working on restart")
 	case len(secret) < 32:
-		return nil, errors.New("AUTH_SECRET must be at least 32 characters")
+		return nil, errors.New("AUTH_SECRET must be at least 32 characters: make one with openssl rand -hex 32")
 	}
 	return &Tokens{secret: secret, ttl: cfg.TokenTTL, now: time.Now}, nil
 }

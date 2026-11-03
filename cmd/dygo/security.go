@@ -2,6 +2,8 @@ package main
 
 import (
 	"bytes"
+	"crypto/rand"
+	"encoding/hex"
 	"fmt"
 	"go/format"
 	"io"
@@ -120,7 +122,17 @@ func afterSecurity(cwd string, proj project, n names, dir string, oidc bool, std
 		if err != nil || bytes.Contains(data, []byte(marker)) {
 			continue
 		}
-		if err := os.WriteFile(env, append(data, block...), 0o644); err != nil {
+		add := block
+		if name == ".env" && !oidc {
+			// .env is local and git-ignored: give it a real secret so tokens
+			// survive restarts. .env.example keeps the empty line.
+			key := make([]byte, 32)
+			if _, err := rand.Read(key); err != nil {
+				return err
+			}
+			add = strings.Replace(add, "\nAUTH_SECRET=\n", "\nAUTH_SECRET="+hex.EncodeToString(key)+"\n", 1)
+		}
+		if err := os.WriteFile(env, append(data, add...), 0o644); err != nil {
 			return err
 		}
 		fmt.Fprintf(stdout, "UPDATE %s (%s)\n", rel(cwd, env), keys)
@@ -177,7 +189,7 @@ func afterSecurity(cwd string, proj project, n names, dir string, oidc bool, std
 		return nil
 	}
 	fmt.Fprintf(stdout, "\nEvery route now needs a bearer token, unless %[1]s/rules.go or %[2]s.Public() opens it.\nNext:\n"+
-		"  set AUTH_SECRET in .env                    # openssl rand -hex 32\n"+
+		"  AUTH_SECRET:      .env has a random one; use your own in production   # openssl rand -hex 32\n"+
 		"  POST /auth/register, POST /auth/login, POST /auth/refresh, POST /auth/logout, GET /auth/me\n"+
 		"  with a database:  dygo g migration, add CREATE UNIQUE INDEX users_email ON users (email);\n"+
 		"                    then dygo db migrate   # tables users, refresh_tokens, refresh_families\n"+

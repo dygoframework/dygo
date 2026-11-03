@@ -29,7 +29,7 @@ UPDATE app.go (openapi.Options += BearerAuth: true)
 
 Every route now needs a bearer token, unless security/rules.go or security.Public() opens it.
 Next:
-  set AUTH_SECRET in .env                    # openssl rand -hex 32
+  AUTH_SECRET:      .env has a random one; use your own in production   # openssl rand -hex 32
   POST /auth/register, POST /auth/login, POST /auth/refresh, POST /auth/logout, GET /auth/me
   with a database:  dygo g migration, add CREATE UNIQUE INDEX users_email ON users (email);
                     then dygo db migrate   # tables users, refresh_tokens, refresh_families

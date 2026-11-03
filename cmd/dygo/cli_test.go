@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -408,6 +409,12 @@ func TestNewSecurityProject(t *testing.T) {
 			}
 			if env := readFile(t, ".env"); !strings.Contains(env, wantEnv) || !strings.Contains(env, "CORS_ALLOWED_ORIGINS=") {
 				t.Fatalf(".env:\n%s", env)
+			}
+			if !tc.oidc && !regexp.MustCompile(`(?m)^AUTH_SECRET=[0-9a-f]{64}$`).MatchString(readFile(t, ".env")) {
+				t.Fatalf(".env needs a random AUTH_SECRET:\n%s", readFile(t, ".env"))
+			}
+			if strings.Contains(readFile(t, ".env.example"), "AUTH_SECRET=") && !strings.Contains(readFile(t, ".env.example"), "AUTH_SECRET=\n") {
+				t.Fatal(".env.example must not get a secret")
 			}
 			if app := readFile(t, "app.module.go"); !strings.Contains(app, "BearerAuth: true") {
 				t.Fatalf("/docs needs an Authorize button; app.module.go:\n%s", app)
