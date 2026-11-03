@@ -193,12 +193,16 @@ const rootModuleWithMiddleware = `package main
 import (
 	"github.com/dygoframework/dygo"
 	"github.com/dygoframework/dygo/middleware"
+	"github.com/dygoframework/dygo/openapi"
 )
 
 // AppModule is the root module.
 func AppModule() *dygo.Module {
 	return &dygo.Module{
 		Name: "app",
+		Imports: []*dygo.Module{
+			openapi.Module(openapi.Options{Info: openapi.Info{Title: "app", Version: "0.1.0"}}),
+		},
 	}
 }
 
@@ -404,6 +408,9 @@ func TestNewSecurityProject(t *testing.T) {
 			}
 			if env := readFile(t, ".env"); !strings.Contains(env, wantEnv) || !strings.Contains(env, "CORS_ALLOWED_ORIGINS=") {
 				t.Fatalf(".env:\n%s", env)
+			}
+			if app := readFile(t, "app.module.go"); !strings.Contains(app, "BearerAuth: true") {
+				t.Fatalf("/docs needs an Authorize button; app.module.go:\n%s", app)
 			}
 			for _, args := range [][]string{
 				{"g", "res", "products", "-fields", "title:string price:float"},

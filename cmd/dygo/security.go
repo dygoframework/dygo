@@ -156,6 +156,14 @@ func afterSecurity(cwd string, proj project, n names, dir string, oidc bool, std
 		}
 	}
 
+	// The API docs get an Authorize button, so /docs can call protected
+	// routes with a token; routes marked Public() stay open there too.
+	if f, err := enableBearerAuth(root); err != nil {
+		return err
+	} else if f != "" {
+		fmt.Fprintf(stdout, "UPDATE %s (openapi.Options += BearerAuth: true)\n", rel(cwd, f))
+	}
+
 	if oidc {
 		fmt.Fprintf(stdout, "\nEvery route now needs a bearer token from your identity provider, unless %[1]s/rules.go or %[2]s.Public() opens it.\nNext:\n"+
 			"  set OAUTH_ISSUER_URL and OAUTH_AUDIENCE in .env   # e.g. https://auth.example.com/realms/shop\n"+
@@ -238,6 +246,38 @@ func addMiddleware(dir, expr, importPath string) (string, error) {
 		}
 		if out, err = addImport(path, out, importPath); err != nil {
 			return "", err
+		}
+		return path, os.WriteFile(path, out, 0o644)
+	}
+	return "", nil
+}
+
+// enableBearerAuth sets BearerAuth: true in the openapi.Options literal of
+// the root package. It returns the edited file, or "" when there is no such
+// literal or it already sets BearerAuth.
+func enableBearerAuth(dir string) (string, error) {
+	entries, _ := os.ReadDir(dir)
+	for _, e := range entries {
+		if !strings.HasSuffix(e.Name(), ".go") || strings.HasSuffix(e.Name(), "_test.go") {
+			continue
+		}
+		path := filepath.Join(dir, e.Name())
+		src, err := os.ReadFile(path)
+		if err != nil {
+			return "", err
+		}
+		const lit = "openapi.Options{"
+		at := bytes.Index(src, []byte(lit))
+		if at < 0 {
+			continue
+		}
+		if bytes.Contains(src, []byte("BearerAuth")) {
+			return "", nil
+		}
+		at += len(lit)
+		out := append(append(append([]byte{}, src[:at]...), "BearerAuth: true, "...), src[at:]...)
+		if out, err = format.Source(out); err != nil {
+			return "", fmt.Errorf("%s: adding BearerAuth: %w", path, err)
 		}
 		return path, os.WriteFile(path, out, 0o644)
 	}

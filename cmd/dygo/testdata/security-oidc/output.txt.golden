@@ -17,6 +17,7 @@ UPDATE .env.example (OAUTH_ISSUER_URL, OAUTH_AUDIENCE, OAUTH_ROLES_CLAIM, CORS_A
 UPDATE dygo.json ("security": true)
 UPDATE app.go (dygo.WithMiddleware += security.CORS())
 UPDATE app.go (dygo.WithMiddleware += middleware.SecureHeaders(middleware.SecureHeadersOptions{}))
+UPDATE app.go (openapi.Options += BearerAuth: true)
 
 Every route now needs a bearer token from your identity provider, unless security/rules.go or security.Public() opens it.
 Next:

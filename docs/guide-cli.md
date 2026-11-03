@@ -214,6 +214,8 @@ func Rules(cfg *Config) []Rule {
 }
 ```
 
+It also turns on `BearerAuth` in the app's `openapi.Options`, so `/docs` has an **Authorize** button: paste the access token from `POST /auth/login` there to try protected routes.
+
 Patterns match the route pattern (`/orders/{id}`), not the raw URL, so path tricks cannot get past a rule; `*` is one segment and `**` any number. Next to a handler, and inside services:
 
 ```go

@@ -3,6 +3,7 @@ package main
 import (
 	"github.com/dygoframework/dygo"
 	"github.com/dygoframework/dygo/middleware"
+	"github.com/dygoframework/dygo/openapi"
 
 	"example.com/app/security"
 )
@@ -10,8 +11,11 @@ import (
 // AppModule is the root module.
 func AppModule() *dygo.Module {
 	return &dygo.Module{
-		Name:    "app",
-		Imports: []*dygo.Module{security.Module},
+		Name: "app",
+		Imports: []*dygo.Module{
+			openapi.Module(openapi.Options{BearerAuth: true, Info: openapi.Info{Title: "app", Version: "0.1.0"}}),
+			security.Module,
+		},
 	}
 }
 

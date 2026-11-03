@@ -86,6 +86,11 @@ func (c *Controller) Routes(r dygo.Router) {
 `Public()` also marks the route as public in the OpenAPI document. On
 `r.Use(...)` an option applies to the whole controller.
 
+`dygo g security` also sets `BearerAuth: true` in the app's `openapi.Options`,
+so `/docs` shows an **Authorize** button. Log in with `POST /auth/login`, paste
+the `accessToken` into Authorize (without the `Bearer ` prefix), and every
+"Try it out" call sends it. Routes marked `Public()` show no lock.
+
 **3. Checks in code**, for decisions that need data:
 
 ```go

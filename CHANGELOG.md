@@ -27,6 +27,9 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   with `sql.ErrSchema` ("schema out of date"), and its message says to run
   `dygo g migration` and `dygo db migrate`. Postgres 42P01/42703 and MySQL
   1146/1054 map to it. It still answers 500.
+- `dygo g security` (and `dygo new -security`) sets `BearerAuth: true` in the
+  app's `openapi.Options`, so `/docs` has an Authorize button for the access
+  token.
 
 ### Fixed
 
