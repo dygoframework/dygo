@@ -41,7 +41,9 @@ func TestClassify(t *testing.T) {
 		{"23514", "price_positive", "", sql.KindConstraint, "price_positive"},
 		{"40001", "", "", sql.KindRetryable, ""},
 		{"40P01", "", "", sql.KindRetryable, ""},
-		{"42P01", "", "", sql.KindOther, ""},
+		{"42P01", "", "", sql.KindSchema, ""},
+		{"42703", "", "", sql.KindSchema, ""},
+		{"42601", "", "", sql.KindOther, ""},
 	}
 	for _, c := range cases {
 		err := fmt.Errorf("exec: %w", &pgconn.PgError{Code: c.code, ConstraintName: c.constraint, ColumnName: c.column})

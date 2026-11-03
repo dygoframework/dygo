@@ -59,6 +59,8 @@ func (dialect) Classify(err error) (sql.Kind, string) {
 		return sql.KindConstraint, c
 	case "40001", "40P01": // serialization_failure, deadlock_detected
 		return sql.KindRetryable, ""
+	case "42P01", "42703": // undefined_table, undefined_column
+		return sql.KindSchema, ""
 	}
 	return sql.KindOther, ""
 }

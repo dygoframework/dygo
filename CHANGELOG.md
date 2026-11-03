@@ -21,6 +21,13 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   layout, `dygo g` now creates a package per feature, as it does elsewhere.
   The `-t`/`-template` flag is gone.
 
+### Changed
+
+- sql: a query on a table or column the database does not have now fails
+  with `sql.ErrSchema` ("schema out of date"), and its message says to run
+  `dygo g migration` and `dygo db migrate`. Postgres 42P01/42703 and MySQL
+  1146/1054 map to it. It still answers 500.
+
 ### Fixed
 
 - Running `dygo db init` a second time in a new project no longer adds a

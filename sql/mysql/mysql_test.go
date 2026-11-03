@@ -50,7 +50,9 @@ func TestClassify(t *testing.T) {
 		{1048, "Column 'email' cannot be null", sql.KindConstraint, ""},
 		{3819, "Check constraint 'c' is violated.", sql.KindConstraint, ""},
 		{1213, "Deadlock found", sql.KindRetryable, ""},
-		{1146, "Table doesn't exist", sql.KindOther, ""},
+		{1146, "Table doesn't exist", sql.KindSchema, ""},
+		{1054, "Unknown column 'roles' in 'field list'", sql.KindSchema, ""},
+		{1064, "You have an error in your SQL syntax", sql.KindOther, ""},
 	}
 	for _, c := range cases {
 		err := fmt.Errorf("exec: %w", &driver.MySQLError{Number: c.number, Message: c.msg})
