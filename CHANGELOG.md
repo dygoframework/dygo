@@ -19,7 +19,7 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   `src/modules`), and `dygo g` no longer writes flat files such as
   `products.service.go` into package `main`. In a project made with the simple
   layout, `dygo g` now creates a package per feature, as it does elsewhere.
-  `-t modular` is still accepted, and `-t simple` stops with a message.
+  The `-t`/`-template` flag is gone.
 
 ### Fixed
 

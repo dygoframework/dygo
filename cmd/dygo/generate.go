@@ -119,10 +119,6 @@ func cmdNew(args []string, stdout io.Writer) error {
 	module := fs.String("module", "", "module path (default: the project name)")
 	replace := fs.String("replace", "", "use a local dygo checkout through a replace directive")
 	skipTidy := fs.Bool("skip-tidy", false, "do not run go mod tidy")
-	// -t/-template is kept so older scripts with -t modular still work;
-	// modular is the only layout now.
-	layout := fs.String("template", "modular", "project layout (modular is the only one)")
-	fs.StringVar(layout, "t", "modular", "short for -template")
 	db := fs.String("db", "", "set up a database: postgres or mysql (DATABASE_URL in .env, migrations/, compose.yaml)")
 	secure := fs.Bool("security", false, "secure the API: every route needs a token (runs dygo g security)")
 	oidc := fs.Bool("oidc", false, "with -security: check the tokens of an identity provider (runs dygo g security -oidc)")
@@ -167,13 +163,6 @@ func cmdNew(args []string, stdout io.Writer) error {
 		if r, err := filepath.Rel(dir, abs); err == nil && strings.Count(r, "..") <= 2 {
 			data.Replace = filepath.ToSlash(r)
 		}
-	}
-	switch *layout {
-	case "modular":
-	case "simple":
-		return errors.New("dygo new: the simple layout was removed; every project now uses the modular layout (drop -t simple)")
-	default:
-		return fmt.Errorf("dygo new: unknown -template %q: modular is the only layout", *layout)
 	}
 	files := []file{{filepath.Join(dir, "go.mod"), "new/go.mod.tmpl"}}
 	for _, f := range projectFiles {

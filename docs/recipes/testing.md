@@ -118,7 +118,7 @@ go vet ./... && go test -race ./... && dygo check
 
 ## End to end
 
-The `app_test.go` that `dygo new -t modular` writes boots the whole
+The `app_test.go` that `dygo new` writes boots the whole
 `AppModule` with test config. Keep one test like it, so a broken import in
 any module fails CI and not the deploy.
 
