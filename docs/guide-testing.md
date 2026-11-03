@@ -81,6 +81,27 @@ coverage) with Postgres, MySQL and Redis on two database versions. The coverage
 goes to [Coveralls](https://coveralls.io/github/dygoframework/dygo). Run
 `make cover` locally for the same total.
 
+## How tests are written
+
+- **Black box first.** Test files use `package foo_test` and the public API.
+  A test that needs unexported code goes in `foo_internal_test.go` with
+  `package foo`.
+- **Table driven.** Cases that differ only by input and expected output go in
+  a slice of structs, run with `t.Run(tt.name, ...)`.
+- **Apps through `dygotest`.** Build a test app with `dygotest.New(module)`,
+  and use `CompileHTTP` with `srv.GET(...).Do(t).Status(t, 200)` for HTTP.
+- **One topic per file.** Name test files after what they test
+  (`writers_test.go`, `response_test.go`), not after a coverage goal.
+
+## Coverage
+
+`make cover` prints the total for every module together. The project keeps it
+above 80%, and new or changed code should be covered more than 80% too.
+
+Generated code and helpers that only tests use are left out of the total:
+`graphql/internal/testgraph` (made by gqlgen) and `sql/internal/suite` (the
+shared database test suite), as well as `examples/`.
+
 ## Two kinds of performance tests
 
 **Micro benchmarks** measure one piece of Dygo: the pipeline, the cache
