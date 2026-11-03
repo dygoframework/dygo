@@ -1,4 +1,4 @@
-name: ci
+name: CI
 
 on:
   push:
@@ -8,8 +8,15 @@ on:
 permissions:
   contents: read
 
+# A new push to a pull request cancels the run still going for the old one.
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
-  test:
+  # Fast tests (go test -short), nothing outside the process.
+  unit:
+    name: Unit tests (Go ${{ matrix.go }})
     strategy:
       matrix:
         go: ["1.27.x", "stable"]
@@ -19,20 +26,26 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: ${{ matrix.go }}
-      - run: make vet
-      - run: make test-unit
-      - run: make check
-      - run: make bench-smoke # every benchmark once: they build and run, not timed
+      - name: Vet
+        run: make vet
+      - name: Unit tests
+        run: make test-unit
+      - name: Check the examples' wiring
+        run: make check
+      - name: Run every benchmark once
+        run: make bench-smoke
 
-  # All tests, integration included, against real services: two Postgres and
-  # two MySQL versions, and Redis. compose.test.yml starts the same locally.
+  # All tests, integration included, against real Postgres, MySQL and Redis.
+  # compose.test.yml starts the same services locally. The newest versions
+  # also send the coverage to Coveralls.
   integration:
+    name: Integration tests (Postgres ${{ matrix.postgres }}, MySQL ${{ matrix.mysql }})
     strategy:
       fail-fast: false
       matrix:
         include:
           - { postgres: "16", mysql: "8.0" }
-          - { postgres: "17", mysql: "8.4" }
+          - { postgres: "17", mysql: "8.4", coverage: true }
     runs-on: ubuntu-latest
     services:
       postgres:
@@ -65,19 +78,30 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
-      - run: make test
+      - name: All tests, with coverage
+        run: make cover
+      - name: Send coverage to Coveralls
+        if: matrix.coverage
+        uses: coverallsapp/github-action@8d6379e14d29928660c4ba802d8e85393440b329 # v2.3.8
+        with:
+          file: coverage.out
+          format: golang
+          fail-on-error: false # a Coveralls outage does not fail the build
 
   lint:
+    name: Lint
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version: stable
-      - run: make lint
+      - name: golangci-lint
+        run: make lint
 
   # OWASP Top 10 checks (docs/owasp.md): a change that breaks one fails here.
   owasp:
+    name: Security (OWASP Top 10)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -94,11 +118,14 @@ jobs:
         run: make fuzz FUZZTIME=20s
 
   docs:
+    name: Docs site
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: actions/setup-python@6d4fd22b20465ccc0f7354476588e8df7c9ca0e0 # v7.1.0
         with:
           python-version: "3.12"
-      - run: pip install "mkdocs-material==9.6.*"
-      - run: make docs
+      - name: Install MkDocs
+        run: pip install "mkdocs-material==9.6.*"
+      - name: Build the site
+        run: make docs

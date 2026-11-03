@@ -76,8 +76,10 @@ cd sql && DYGO_TEST_POSTGRES_URL=... go test ./postgres
 go test ./cmd/dygo -update   # rewrite the CLI golden files after a template change
 ```
 
-CI runs `make test-unit` on two Go versions, and `make test` with Postgres,
-MySQL and Redis on two database versions.
+CI runs `make test-unit` on two Go versions, and `make cover` (all tests, with
+coverage) with Postgres, MySQL and Redis on two database versions. The coverage
+goes to [Coveralls](https://coveralls.io/github/dygoframework/dygo). Run
+`make cover` locally for the same total.
 
 ## Two kinds of performance tests
 

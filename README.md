@@ -1,5 +1,8 @@
 # Dygo
 
+[![CI](https://github.com/dygoframework/dygo/actions/workflows/ci.yml/badge.svg)](https://github.com/dygoframework/dygo/actions/workflows/ci.yml)
+[![Coverage](https://coveralls.io/repos/github/dygoframework/dygo/badge.svg?branch=main)](https://coveralls.io/github/dygoframework/dygo?branch=main)
+
 A modular, secure-by-default web framework for Go. Modules, dependency
 injection and typed handlers, on plain `net/http`, with a core that uses only
 the standard library.

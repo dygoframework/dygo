@@ -1,6 +1,6 @@
 # OWASP Top 10
 
-Every pull request runs the `owasp` CI job (`make owasp`), which fails when a
+Every pull request runs the "Security (OWASP Top 10)" CI job (`make owasp`), which fails when a
 change breaks one of the checks below. It has four steps:
 
 | Step | Make target | What it does |
