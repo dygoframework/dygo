@@ -1,11 +1,10 @@
-{{if not .FlatPkg}}// Package {{.Pkg}} is the {{.Kebab}} feature.
-{{end -}}
-package {{.Package}}
+// Package {{.Pkg}} is the {{.Kebab}} feature.
+package {{.Pkg}}
 
 import "{{.Framework}}"
 
-// {{.P}}Module wires the {{.Kebab}} feature. dygo generate service and controller
+// Module wires the {{.Kebab}} feature. dygo generate service and controller
 // register new providers here.
-var {{.P}}Module = &dygo.Module{
+var Module = &dygo.Module{
 	Name: "{{.Kebab}}",
 }

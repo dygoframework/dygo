@@ -5,33 +5,26 @@ import (
 	"testing"
 
 	"{{.Framework}}"
-	"{{.Framework}}/config"
 	"{{.Framework}}/dygotest"
+
+	"{{.Module}}/src/config"
 )
 
-func testApp(t *testing.T) *dygotest.Server {
-	t.Helper()
-	cfg, err := config.Load[Config](config.Env(map[string]string{}))
+// TestWiring validates the whole module graph without building anything.
+func TestWiring(t *testing.T) {
+	if _, err := dygo.Describe(AppModule(&config.Config{}, slog.New(slog.DiscardHandler))); err != nil {
+		t.Fatal(err)
+	}
+}
+
+// TestApp boots the whole application, end to end.
+func TestApp(t *testing.T) {
+	cfg, err := config.Load(map[string]string{})
 	if err != nil {
 		t.Fatal(err)
 	}
 	log := slog.New(slog.DiscardHandler)
-	return dygotest.New(AppModule(cfg, log)).With(Options(cfg, log)...).CompileHTTP(t)
-}
-
-// TestWiring validates the module graph without building anything.
-func TestWiring(t *testing.T) {
-	if _, err := dygo.Describe(AppModule(&Config{}, slog.New(slog.DiscardHandler))); err != nil {
-		t.Fatal(err)
-	}
-}
-
-func TestHello(t *testing.T) {
-	srv := testApp(t)
-	var msg Message
-	srv.GET("/").Do(t).Status(t, 200).JSON(t, &msg)
-	if msg.Message != "Hello World!" {
-		t.Fatalf("got %q", msg.Message)
-	}
-	srv.GET("/health/live").Do(t).Status(t, 200)
+	srv := dygotest.New(AppModule(cfg, log)).With(AppOptions(cfg, log)...).CompileHTTP(t)
+	srv.GET("/health/ready").Do(t).Status(t, 200)
+	srv.GET("/openapi.json").Do(t).Status(t, 200)
 }

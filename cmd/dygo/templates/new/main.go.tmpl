@@ -1,4 +1,5 @@
-// Command {{.Name}} is a Dygo application.
+// {{.Name}} starts here: load the config, create the
+// application from AppModule (app.module.go) and listen.
 //
 //	go run .            # or: dygo start -watch
 //	go run . help       # list the console commands
@@ -13,13 +14,14 @@ import (
 
 	"{{.Framework}}"
 	"{{.Framework}}/console"
-	"{{.Framework}}/config"
 	"{{.Framework}}/logger"
+
+	"{{.Module}}/src/config"
 )
 
 func main() {
 	log := logger.New(logger.Options{}) // JSON when APP_ENV=production, level from LOG_LEVEL
-	cfg, err := config.Load[Config](config.Files(".env.local", ".env"))
+	cfg, err := config.Load()
 	if err != nil {
 		log.Error("bad configuration", "err", err)
 		os.Exit(1)
@@ -28,7 +30,7 @@ func main() {
 	if len(os.Args) > 1 { // go run . <command>: a console command (dygo g command)
 		os.Exit(console.Main(ctx, AppModule(cfg, log), os.Args[1:], dygo.WithLogger(log)))
 	}
-	app, err := dygo.Create(ctx, AppModule(cfg, log), Options(cfg, log)...)
+	app, err := dygo.Create(ctx, AppModule(cfg, log), AppOptions(cfg, log)...)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

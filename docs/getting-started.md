@@ -13,7 +13,7 @@ You need Go 1.27 or newer.
 
 ```sh
 go install github.com/dygoframework/dygo/cmd/dygo@latest
-dygo new shop -t modular
+dygo new shop
 cd shop
 go run .
 ```

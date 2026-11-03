@@ -10,6 +10,23 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 `validate/playground`, `sql`) are versioned and tagged on their own, such as
 `ws/v1.0.0-beta.1`. Their changes are listed here too, under the module's name.
 
+## Unreleased
+
+### Removed
+
+- The simple `dygo new` layout. Every project now gets the modular layout
+  (`main.go`, `app.module.go`, `src/config`, `src/database`, `src/health`,
+  `src/modules`), and `dygo g` no longer writes flat files such as
+  `products.service.go` into package `main`. In a project made with the simple
+  layout, `dygo g` now creates a package per feature, as it does elsewhere.
+  `-t modular` is still accepted, and `-t simple` stops with a message.
+
+### Fixed
+
+- Running `dygo db init` a second time in a new project no longer adds a
+  second driver module to `app.module.go` when `src/database` already opens
+  that driver.
+
 ## v1.0.0-beta.1 (2026-11-03)
 
 ### Added

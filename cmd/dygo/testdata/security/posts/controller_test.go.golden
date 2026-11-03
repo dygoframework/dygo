@@ -1,4 +1,4 @@
-package main
+package posts
 
 import (
 	"testing"
@@ -12,9 +12,9 @@ import (
 	"example.com/app/security/securitytest"
 )
 
-func TestPostsCRUD(t *testing.T) {
+func TestCRUD(t *testing.T) {
 	securitytest.Setup(t)
-	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), security.Module, PostsModule}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), security.Module, Module}}
 	srv := dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
 	reader := securitytest.User("2", "user")
 	writer := reader

@@ -37,12 +37,12 @@ Next:
   in a service:     err := security.Require(ctx, security.HasAuthority("orders:cancel"))
   read the user:    p, _ := security.CurrentUser(ctx)
   in tests:         securitytest.Setup(t); srv.GET("/x").With(securitytest.User("7", "user"))
-CREATE products.module.go
-CREATE products.go
-CREATE products.service.go
-CREATE products.controller.go
-CREATE products.controller_test.go
-UPDATE app.go (Imports += ProductsModule)
+CREATE products/module.go
+CREATE products/products.go
+CREATE products/service.go
+CREATE products/controller.go
+CREATE products/controller_test.go
+UPDATE app.go (Imports += products.Module)
 
 Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
 
@@ -57,12 +57,12 @@ Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
  Next: go test ./... and dygo routes; try them at /docs.
 
 Security: list and get need a signed in user; create, update and delete need the admin role. Change it with -public-read, -write-role or security/rules.go.
-CREATE posts.module.go
-CREATE posts.go
-CREATE posts.service.go
-CREATE posts.controller.go
-CREATE posts.controller_test.go
-UPDATE app.go (Imports += PostsModule)
+CREATE posts/module.go
+CREATE posts/posts.go
+CREATE posts/service.go
+CREATE posts/controller.go
+CREATE posts/controller_test.go
+UPDATE app.go (Imports += posts.Module)
 
 Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
 
@@ -77,13 +77,13 @@ Run go mod tidy to add github.com/dygoframework/dygo/sql to go.mod.
  Next: go test ./... and dygo routes; try them at /docs.
 
 Security: list and get are public; create, update and delete need a signed in user. Change it with -public-read, -write-role or security/rules.go.
-CREATE billing.controller.go
-CREATE billing.controller_test.go
-UPDATE app.go (Controllers += dygo.Provide(NewBillingController))
+CREATE billing/controller.go
+CREATE billing/controller_test.go
+UPDATE app.go (Controllers += dygo.Provide(billing.NewController))
 
 Security: these routes need a signed in user, unless security/rules.go opens them; -public makes them public.
-CREATE hooks.controller.go
-CREATE hooks.controller_test.go
-UPDATE app.go (Controllers += dygo.Provide(NewHooksController))
+CREATE hooks/controller.go
+CREATE hooks/controller_test.go
+UPDATE app.go (Controllers += dygo.Provide(hooks.NewController))
 
 Security: these routes are public (security.Public()).

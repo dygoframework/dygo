@@ -128,8 +128,8 @@ type project struct {
 	Config projectConfig
 }
 
-// projectConfig is dygo.json at the project root, written by dygo new
-// -template modular. Every field is optional.
+// projectConfig is dygo.json at the project root, written by dygo new.
+// Every field is optional.
 type projectConfig struct {
 	Layout        string `json:"layout"`
 	Main          string `json:"main"`          // the main package for routes, check, start (default ".")
@@ -166,12 +166,6 @@ func findProject(dir string) (project, error) {
 			return project{}, fmt.Errorf("no go.mod in %s or any parent directory", dir)
 		}
 	}
-}
-
-// flat reports whether dygo g run in dir writes flat files: in the root of a
-// simple project (dygo.json "layout": "simple").
-func (p project) flat(dir string) bool {
-	return p.Config.Layout == "simple" && dir == p.Dir
 }
 
 func modulePath(gomod []byte) string {

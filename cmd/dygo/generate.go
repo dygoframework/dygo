@@ -32,7 +32,6 @@ type tmplData struct {
 	Driver     string      // dygo db init: postgres or mysql
 	DB         dbSettings  // dygo db init: the connection settings
 	Migration  string      // dygo g migration: NNNN_name
-	FlatPkg    string      // a simple project's root package: write flat files there, not a package
 	IsEmail    bool        // the package already has isEmail, so the entity file must not repeat it
 	UsesSQL    bool        // dygo g test: the module needs a *sql.DB
 	ImportPath string      // dygo g security: the import path of the generated package
@@ -43,34 +42,6 @@ type tmplData struct {
 // Table is the entity's table name, as dygo g migration derives it.
 func (d tmplData) Table() string { return tableName(nil, d.Entity) }
 
-// Package is the package clause: the feature's own package, or the root
-// package of a simple project.
-func (d tmplData) Package() string {
-	if d.FlatPkg != "" {
-		return d.FlatPkg
-	}
-	return d.Pkg
-}
-
-// P prefixes type and function names. A feature package has Service and
-// NewService; flat files in one package need ProductsService and
-// NewProductsService so features do not clash.
-func (d tmplData) P() string {
-	if d.FlatPkg != "" {
-		return d.Pascal
-	}
-	return ""
-}
-
-// Local names an unexported helper: notFound in a feature package,
-// productsNotFound in flat files.
-func (d tmplData) Local(name string) string {
-	if d.FlatPkg == "" {
-		return name
-	}
-	return strings.ToLower(d.Pascal[:1]) + d.Pascal[1:] + strings.ToUpper(name[:1]) + name[1:]
-}
-
 // Imports are the standard packages the entity file needs. net/mail is left
 // out when isEmail is in another file of the package.
 func (d tmplData) Imports() []string {
@@ -78,15 +49,6 @@ func (d tmplData) Imports() []string {
 		return d.Fields.Imports()
 	}
 	return slices.DeleteFunc(d.Fields.Imports(), func(p string) bool { return p == "net/mail" })
-}
-
-// flatName is the file name for base in flat mode: module.go becomes
-// products.module.go, and the entity file products.go stays as it is.
-func flatName(n names, base string) string {
-	if base == n.Pkg+".go" {
-		return base
-	}
-	return n.Pkg + "." + base
 }
 
 // file is one file to create: the target path and its template.
@@ -157,8 +119,10 @@ func cmdNew(args []string, stdout io.Writer) error {
 	module := fs.String("module", "", "module path (default: the project name)")
 	replace := fs.String("replace", "", "use a local dygo checkout through a replace directive")
 	skipTidy := fs.Bool("skip-tidy", false, "do not run go mod tidy")
-	layout := fs.String("template", "simple", "project layout: simple (everything in package main) or modular (main.go, app.module.go, src/modules, ...)")
-	fs.StringVar(layout, "t", "simple", "short for -template")
+	// -t/-template is kept so older scripts with -t modular still work;
+	// modular is the only layout now.
+	layout := fs.String("template", "modular", "project layout (modular is the only one)")
+	fs.StringVar(layout, "t", "modular", "short for -template")
 	db := fs.String("db", "", "set up a database: postgres or mysql (DATABASE_URL in .env, migrations/, compose.yaml)")
 	secure := fs.Bool("security", false, "secure the API: every route needs a token (runs dygo g security)")
 	oidc := fs.Bool("oidc", false, "with -security: check the tokens of an identity provider (runs dygo g security -oidc)")
@@ -168,7 +132,7 @@ func cmdNew(args []string, stdout io.Writer) error {
 	}
 	switch {
 	case len(pos) == 0:
-		return errors.New("dygo new: missing project name (example: dygo new shop, or dygo new shop -t modular -db postgres)")
+		return errors.New("dygo new: missing project name (example: dygo new shop, or dygo new shop -db postgres)")
 	case len(pos) > 1:
 		return fmt.Errorf("dygo new: unexpected argument %q (flags may come before or after the name)", pos[1])
 	}
@@ -204,12 +168,15 @@ func cmdNew(args []string, stdout io.Writer) error {
 			data.Replace = filepath.ToSlash(r)
 		}
 	}
-	layoutFiles, ok := layouts[*layout]
-	if !ok {
-		return fmt.Errorf("unknown -template %q: want simple or modular", *layout)
+	switch *layout {
+	case "modular":
+	case "simple":
+		return errors.New("dygo new: the simple layout was removed; every project now uses the modular layout (drop -t simple)")
+	default:
+		return fmt.Errorf("dygo new: unknown -template %q: modular is the only layout", *layout)
 	}
 	files := []file{{filepath.Join(dir, "go.mod"), "new/go.mod.tmpl"}}
-	for _, f := range layoutFiles {
+	for _, f := range projectFiles {
 		files = append(files, file{filepath.Join(dir, filepath.FromSlash(f.path)), f.tmpl})
 	}
 	contents, err := render(files, data)
@@ -296,35 +263,21 @@ Created %s with a %[3]s database. Next:
 dygo help db shows the migration commands.
 `
 
-// layouts are the dygo new templates: target path and template file.
-var layouts = map[string][]file{
-	"simple": {
-		{"main.go", "new/main.go.tmpl"},
-		{"config.go", "new/config.go.tmpl"},
-		{"app.go", "new/app.go.tmpl"},
-		{"app.controller.go", "new/app_controller.go.tmpl"},
-		{"dygo.json", "new/dygo.json.tmpl"},
-		{"app_test.go", "new/app_test.go.tmpl"},
-		{".env.example", "new/env.example.tmpl"},
-		{".gitignore", "new/gitignore.tmpl"},
-		{"Dockerfile", "new/Dockerfile.tmpl"},
-		{"README.md", "new/README.md.tmpl"},
-	},
-	"modular": {
-		{"main.go", "modular/main.go.tmpl"},
-		{"app.module.go", "modular/app.module.go.tmpl"},
-		{"app_test.go", "modular/app_test.go.tmpl"},
-		{"src/config/config.go", "modular/config.go.tmpl"},
-		{"src/database/database.go", "modular/database.go.tmpl"},
-		{"src/health/health.go", "modular/health.go.tmpl"},
-		{"src/common/pagination.go", "modular/common.go.tmpl"},
-		{"src/modules/doc.go", "modular/modules.go.tmpl"},
-		{"dygo.json", "modular/dygo.json.tmpl"},
-		{".env.example", "modular/env.example.tmpl"},
-		{".gitignore", "modular/gitignore.tmpl"},
-		{"Dockerfile", "modular/Dockerfile.tmpl"},
-		{"README.md", "modular/README.md.tmpl"},
-	},
+// projectFiles are the files dygo new creates: target path and template.
+var projectFiles = []file{
+	{"main.go", "new/main.go.tmpl"},
+	{"app.module.go", "new/app.module.go.tmpl"},
+	{"app_test.go", "new/app_test.go.tmpl"},
+	{"src/config/config.go", "new/config.go.tmpl"},
+	{"src/database/database.go", "new/database.go.tmpl"},
+	{"src/health/health.go", "new/health.go.tmpl"},
+	{"src/common/pagination.go", "new/common.go.tmpl"},
+	{"src/modules/doc.go", "new/modules.go.tmpl"},
+	{"dygo.json", "new/dygo.json.tmpl"},
+	{".env.example", "new/env.example.tmpl"},
+	{".gitignore", "new/gitignore.tmpl"},
+	{"Dockerfile", "new/Dockerfile.tmpl"},
+	{"README.md", "new/README.md.tmpl"},
 }
 
 var kinds = map[string]string{
@@ -474,41 +427,23 @@ func generate(cwd, kind, name string, o genOptions, stdout io.Writer) error {
 	if kind == "crud" {
 		return generateCRUD(cwd, proj, base, name, o, stdout)
 	}
-	// A simple project keeps everything in its root package, so from the
-	// root, features become flat files there (products.service.go) instead
-	// of a package. auth and the background kinds stay packages: other code uses
-	// them by package name (auth.Required(), jobs.JobName).
-	flatPkg := ""
-	if proj.flat(cwd) && flatKinds[kind] {
-		if flatPkg, err = packageName(cwd); err != nil {
-			return err
-		}
-	}
 	dir := filepath.Join(base, filepath.FromSlash(name))
 	nameFor := newNames
-	if kind == "entity" || kind == "resource" || (kind == "test" && flatPkg != "") {
-		nameFor = entityNames // g test Product finds ProductsModule, like g resource Product made it
+	if kind == "entity" || kind == "resource" {
+		nameFor = entityNames
 	}
 	n, err := nameFor(filepath.Base(dir))
 	if err != nil {
 		return err
 	}
 	dir = filepath.Join(filepath.Dir(dir), n.Pkg)
-	if flatPkg != "" {
-		dir = cwd
-	}
-	data := tmplData{names: n, Framework: frameworkPath, FlatPkg: flatPkg, IsEmail: packageContains(dir, "func isEmail("), ImportPath: proj.importPath(dir)}
+	data := tmplData{names: n, Framework: frameworkPath, IsEmail: packageContains(dir, "func isEmail("), ImportPath: proj.importPath(dir)}
 	if kind == "controller" || kind == "resource" {
 		if data.Sec, err = findSecurity(proj, o); err != nil {
 			return err
 		}
 	}
-	at := func(path, tmpl string) file {
-		if flatPkg != "" {
-			path = flatName(n, path)
-		}
-		return file{filepath.Join(dir, path), "gen/" + tmpl}
-	}
+	at := func(path, tmpl string) file { return file{filepath.Join(dir, path), "gen/" + tmpl} }
 
 	fields := func(existing []string) error {
 		adding := existing != nil
@@ -582,7 +517,7 @@ func generate(cwd, kind, name string, o genOptions, stdout io.Writer) error {
 				return switchFromAuth(cwd, other)
 			}
 		}
-		if sites, err := featureModules(dir, n, flatPkg != ""); err != nil {
+		if sites, err := findModules(dir); err != nil {
 			return err
 		} else if len(sites) > 0 {
 			hint := ""
@@ -615,19 +550,15 @@ func generate(cwd, kind, name string, o genOptions, stdout io.Writer) error {
 		}
 		reg = moduleEdit{Field: "Imports", Expr: n.Pkg + ".Module", ImportPath: proj.importPath(dir)}
 		regFrom = filepath.Dir(dir)
-		if flatPkg != "" {
-			reg = moduleEdit{Field: "Imports", Expr: data.P() + "Module"}
-			regFrom = dir
-		}
 	case "service":
 		files = []file{at("service.go", "service.go.tmpl"), at("service_test.go", "service_test.go.tmpl")}
-		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(New" + data.P() + "Service)"}
+		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(New" + "Service)"}
 	case "controller":
 		files = []file{at("controller.go", "controller.go.tmpl"), at("controller_test.go", "controller_test.go.tmpl")}
-		reg = moduleEdit{Field: "Controllers", Expr: "dygo.Provide(New" + data.P() + "Controller)"}
+		reg = moduleEdit{Field: "Controllers", Expr: "dygo.Provide(New" + "Controller)"}
 	case "command":
 		files = []file{at("command.go", "command.go.tmpl"), at("command_test.go", "command_test.go.tmpl")}
-		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(New" + data.P() + "Command)"}
+		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(New" + "Command)"}
 	case "listener", "cron", "job", "gateway", "rpc":
 		g := pkgKinds[kind]
 		files = []file{at(g.file+".go", kind+".go.tmpl"), at(g.file+"_test.go", kind+"_test.go.tmpl")}
@@ -645,13 +576,6 @@ func writeAndRegister(cwd string, proj project, kind string, n names, dir, regFr
 	}
 
 	site, err := nearestModule(regFrom, proj.Dir)
-	if data.FlatPkg != "" {
-		// Flat files share the root directory with AppModule: a service of
-		// products goes into ProductsModule when there is one.
-		if sites, _ := featureModules(regFrom, n, true); len(sites) == 1 {
-			site, err = sites[0], nil
-		}
-	}
 	if errors.Is(err, errNoModule) && proj.Config.RootModuleDir != "" {
 		var sites []moduleSite
 		sites, err = findModules(filepath.Join(proj.Dir, filepath.FromSlash(proj.Config.RootModuleDir)))
@@ -742,26 +666,6 @@ func afterGenerate(cwd string, proj project, kind string, n names, stdout io.Wri
 			"  read the user:     claims, _ := %[2]s.UserFrom(ctx)\n", n.Kebab, n.Pkg)
 	}
 	return nil
-}
-
-// flatKinds are the generators that write flat files in a simple project.
-var flatKinds = map[string]bool{"module": true, "service": true, "controller": true, "resource": true, "entity": true, "command": true, "test": true}
-
-// featureModules returns the modules of the feature n in dir. In a feature
-// package that is every module there; among flat files it is the one named
-// like the feature, so AppModule next to it does not count.
-func featureModules(dir string, n names, flat bool) ([]moduleSite, error) {
-	sites, err := findModules(dir)
-	if err != nil || !flat {
-		return sites, err
-	}
-	var out []moduleSite
-	for _, s := range sites {
-		if s.Name == n.Kebab {
-			out = append(out, s)
-		}
-	}
-	return out, nil
 }
 
 // packageName returns the package clause of the non-test Go files in dir.

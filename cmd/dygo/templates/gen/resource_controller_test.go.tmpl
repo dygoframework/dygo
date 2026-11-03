@@ -1,4 +1,4 @@
-package {{.Package}}
+package {{.Pkg}}
 
 import (
 	"testing"
@@ -17,12 +17,12 @@ import (
 {{- end}}
 )
 
-func Test{{.P}}CRUD(t *testing.T) {
+func TestCRUD(t *testing.T) {
 {{- if .Sec}}
 	securitytest.Setup(t)
-	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.Sec.Pkg}}.Module, {{.P}}Module}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.Sec.Pkg}}.Module, Module}}
 {{- else}}
-	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.P}}Module}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), Module}}
 {{- end}}
 	srv := dygotest.New(app).With(validate.Use(validate.Methods())).CompileHTTP(t)
 {{- if and .Sec (not .Sec.Public)}}

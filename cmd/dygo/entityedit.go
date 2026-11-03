@@ -210,7 +210,7 @@ func addFields(cwd, dir, file, entity string, fields []entityField, dryRun bool,
 			missing = append(missing, "func ("+strings.Replace(k, ".", ") ", 1))
 		}
 	}
-	// isEmail may live in another file of the package (flat files share one).
+	// isEmail may live in another file of the package.
 	elsewhere := !hasIsEmail && packageContains(dir, "func isEmail(")
 	if add.HasEmail() && !hasIsEmail && !elsewhere {
 		ins = append(ins, insertion{len(src), "\nfunc isEmail(s string) bool {\na, err := mail.ParseAddress(s)\nreturn err == nil && a.Address == s\n}\n"})
@@ -325,8 +325,8 @@ var pathParamRE = regexp.MustCompile(`\{[^}]*\}`)
 // generateTest writes routes_test.go for the package in dir from the routes
 // the running app registers for it.
 func generateTest(cwd string, proj project, dir string, data tmplData, dryRun bool, stdout io.Writer) error {
-	if !packageContains(dir, "var "+data.P()+"Module") {
-		return fmt.Errorf("%s has no var %sModule: dygo g test works on a feature module", rel(cwd, dir), data.P())
+	if !packageContains(dir, "var Module") {
+		return fmt.Errorf("%s has no var Module: dygo g test works on a feature module", rel(cwd, dir))
 	}
 	main := filepath.Join(proj.Dir, filepath.FromSlash(cmp(proj.Config.Main, ".")))
 	pkg := filepath.ToSlash(rel(cwd, main))
@@ -341,9 +341,6 @@ func generateTest(cwd string, proj project, dir string, data tmplData, dryRun bo
 		return printErrors(stdout, rep)
 	}
 	prefix := data.Pkg + "." // handlers are named like products.(*Controller).List
-	if data.FlatPkg != "" {
-		prefix = data.FlatPkg + ".(*" + data.P() + "Controller)." // main.(*ProductsController).List
-	}
 	for _, r := range rep.Routes {
 		if !strings.HasPrefix(r.Handler, prefix) || r.Method == "" {
 			continue
@@ -374,11 +371,7 @@ func generateTest(cwd string, proj project, dir string, data tmplData, dryRun bo
 		return fmt.Errorf("the app has no routes from %s: is its module imported into the root module?", proj.importPath(dir))
 	}
 	data.UsesSQL = packageContains(dir, "sql.ForFeature[")
-	name := "routes_test.go"
-	if data.FlatPkg != "" {
-		name = flatName(data.names, name)
-	}
-	files := []file{{filepath.Join(dir, name), "gen/routes_test.go.tmpl"}}
+	files := []file{{filepath.Join(dir, "routes_test.go"), "gen/routes_test.go.tmpl"}}
 	contents, err := render(files, data)
 	if err != nil {
 		return err

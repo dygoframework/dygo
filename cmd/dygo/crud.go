@@ -116,21 +116,11 @@ func generateCRUD(cwd string, proj project, base, name string, o genOptions, std
 		}
 		return fmt.Errorf("%s: create it first with dygo g entity %s", msg, name)
 	}
-	// An entity in the root of a simple project gets flat files next to it.
-	flatPkg := ""
-	if proj.flat(e.Dir) {
-		if flatPkg, err = packageName(e.Dir); err != nil {
-			return err
-		}
-	}
 	n, err := newNames(filepath.Base(e.Dir))
-	if flatPkg != "" {
-		n, err = entityNames(e.Entity)
-	}
 	if err != nil {
 		return err
 	}
-	if sites, err := featureModules(e.Dir, n, flatPkg != ""); err != nil {
+	if sites, err := findModules(e.Dir); err != nil {
 		return err
 	} else if len(sites) > 0 {
 		return fmt.Errorf("%s already has a module (%s): CRUD for %s may already exist", rel(cwd, e.Dir), rel(cwd, sites[0].File), e.Entity)
@@ -156,16 +146,11 @@ func generateCRUD(cwd string, proj project, base, name string, o genOptions, std
 	}
 	n.Entity = e.Entity
 	n.Var = string(unicode.ToLower(rune(e.Entity[0]))) + e.Entity[1:]
-	data := tmplData{names: n, Framework: frameworkPath, Fields: fields, FlatPkg: flatPkg}
+	data := tmplData{names: n, Framework: frameworkPath, Fields: fields}
 	if data.Sec, err = findSecurity(proj, o); err != nil {
 		return err
 	}
-	at := func(path, tmpl string) file {
-		if flatPkg != "" {
-			path = flatName(n, path)
-		}
-		return file{filepath.Join(e.Dir, path), "gen/" + tmpl}
-	}
+	at := func(path, tmpl string) file { return file{filepath.Join(e.Dir, path), "gen/" + tmpl} }
 	files := []file{
 		at("module.go", "resource_module.go.tmpl"),
 		at("service.go", "resource_service.go.tmpl"),
@@ -174,10 +159,6 @@ func generateCRUD(cwd string, proj project, base, name string, o genOptions, std
 	}
 	reg := moduleEdit{Field: "Imports", Expr: n.Pkg + ".Module", ImportPath: proj.importPath(e.Dir)}
 	regFrom := filepath.Dir(e.Dir)
-	if flatPkg != "" {
-		reg = moduleEdit{Field: "Imports", Expr: data.P() + "Module"}
-		regFrom = e.Dir
-	}
 	return writeAndRegister(cwd, proj, "crud", n, e.Dir, regFrom, files, data, reg, o.DryRun, stdout)
 }
 

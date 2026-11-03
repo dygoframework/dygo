@@ -1,4 +1,4 @@
-package {{.Package}}
+package {{.Pkg}}
 
 import (
 	"testing"
@@ -12,15 +12,15 @@ import (
 {{- end}}
 )
 
-func Test{{.P}}Controller(t *testing.T) {
+func TestController(t *testing.T) {
 {{- if .Sec}}
 	securitytest.Setup(t)
 	srv := dygotest.New(&dygo.Module{
 		Name:        "test",
 		Imports:     []*dygo.Module{ {{- .Sec.Pkg}}.Module},
-		Controllers: []dygo.Provider{dygo.Provide(New{{.P}}Controller)},
+		Controllers: []dygo.Provider{dygo.Provide(NewController)},
 	}).CompileHTTP(t)
-	var out {{.P}}HelloOut
+	var out HelloOut
 {{- if .Sec.Public}}
 	srv.GET("/{{.Kebab}}").Do(t).Status(t, 200).JSON(t, &out)
 {{- else}}
@@ -30,9 +30,9 @@ func Test{{.P}}Controller(t *testing.T) {
 {{- else}}
 	srv := dygotest.New(&dygo.Module{
 		Name:        "test",
-		Controllers: []dygo.Provider{dygo.Provide(New{{.P}}Controller)},
+		Controllers: []dygo.Provider{dygo.Provide(NewController)},
 	}).CompileHTTP(t)
-	var out {{.P}}HelloOut
+	var out HelloOut
 	srv.GET("/{{.Kebab}}").Do(t).Status(t, 200).JSON(t, &out)
 {{- end}}
 }

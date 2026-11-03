@@ -129,7 +129,7 @@ func TestGenerateSecurityGolden(t *testing.T) {
 	write(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.27.0\n")
 	write(t, filepath.Join(dir, "app.go"), rootModuleWithMiddleware)
 	write(t, filepath.Join(dir, ".env.example"), "PORT=9900\n")
-	write(t, filepath.Join(dir, "dygo.json"), "{\n  \"layout\": \"simple\"\n}\n")
+	write(t, filepath.Join(dir, "dygo.json"), "{\n  \"main\": \".\"\n}\n")
 	var out bytes.Buffer
 	if err := generate(dir, "security", "security", genOptions{}, &out); err != nil {
 		t.Fatal(err)
@@ -224,8 +224,8 @@ func write(t *testing.T, path, data string) {
 
 // TestNewProject is the end to end check of the CLI: dygo new, then generate a
 // resource, and the project vets and passes its tests. The inspection commands
-// run against it too. It builds real programs, so -short skips it. The simple
-// layout gets flat files in package main (users.service.go), not packages.
+// run against it too. It builds real programs, so -short skips it. Features
+// generated from the root go to src/modules and are imported in app.module.go.
 func TestNewProject(t *testing.T) {
 	dygotest.Integration(t) // builds real programs
 	repo, err := filepath.Abs("../..")
@@ -262,19 +262,24 @@ func TestNewProject(t *testing.T) {
 			t.Fatalf("%v: %v\n%s", args, err, out.String())
 		}
 	}
-	for _, f := range []string{"users.go", "users.module.go", "users.service.go", "users.controller.go", "users.controller_test.go", "users.routes_test.go", "mailer.service.go", "seed.command.go", "auth/module.go"} {
-		if _, err := os.Stat(f); err != nil {
-			t.Errorf("want flat file %s: %v\n%s", f, err, out.String())
+	for _, f := range []string{"users.go", "module.go", "service.go", "controller.go", "controller_test.go", "routes_test.go"} {
+		if _, err := os.Stat(filepath.Join("src", "modules", "users", f)); err != nil {
+			t.Errorf("want src/modules/users/%s: %v\n%s", f, err, out.String())
 		}
 	}
-	app, _ := os.ReadFile("app.go")
-	billing, _ := os.ReadFile("billing.module.go")
-	for _, want := range []string{"UsersModule", "InvoicesModule", "BillingModule", "NewMailerService", "NewSeedCommand"} {
+	for _, f := range []string{"src/modules/mailer/service.go", "src/modules/seed/command.go", "src/modules/auth/module.go"} {
+		if _, err := os.Stat(filepath.FromSlash(f)); err != nil {
+			t.Errorf("want %s: %v\n%s", f, err, out.String())
+		}
+	}
+	app, _ := os.ReadFile("app.module.go")
+	billing, _ := os.ReadFile(filepath.Join("src", "modules", "billing", "module.go"))
+	for _, want := range []string{"users.Module", "invoices.Module", "billing.Module", "mailer.NewService", "seed.NewCommand"} {
 		if !strings.Contains(string(app), want) {
-			t.Errorf("app.go: missing %s\n%s", want, app)
+			t.Errorf("app.module.go: missing %s\n%s", want, app)
 		}
 	}
-	if !strings.Contains(string(billing), "NewBillingService") || !strings.Contains(string(billing), "NewBillingController") {
+	if !strings.Contains(string(billing), "dygo.Provide(NewService)") || !strings.Contains(string(billing), "dygo.Provide(NewController)") {
 		t.Errorf("billing service and controller belong in BillingModule:\n%s", billing)
 	}
 	for _, args := range [][]string{{"vet", "./..."}, {"test", "./..."}, {"run", ".", "seed", "x"}} {
@@ -292,33 +297,34 @@ func TestNewProject(t *testing.T) {
 	if err := run([]string{"routes"}, &stdout, &stderr); err != nil {
 		t.Fatalf("routes: %v\n%s", err, stderr.String())
 	}
-	for _, want := range []string{"GET     /users", "DELETE  /users/{id}", "main.UsersCreateIn", "\n19 routes", "POST    /auth/login"} {
+	for _, want := range []string{"GET     /users", "DELETE  /users/{id}", "users.CreateIn", "\n18 routes", "POST    /auth/login"} {
 		if !strings.Contains(stdout.String(), want) {
 			t.Errorf("routes: missing %q in\n%s", want, stdout.String())
 		}
 	}
 	stdout.Reset()
-	if err := run([]string{"check"}, &stdout, &stderr); err != nil || !strings.Contains(stdout.String(), "ok: 10 modules, 20 providers, 7 controllers") {
+	if err := run([]string{"check"}, &stdout, &stderr); err != nil || !strings.Contains(stdout.String(), "ok: 12 modules, 20 providers, 6 controllers") {
 		t.Fatalf("check: %v\n%s%s", err, stdout.String(), stderr.String())
 	}
 	stdout.Reset()
-	if err := run([]string{"graph", "-format", "mermaid"}, &stdout, &stderr); err != nil || !strings.Contains(stdout.String(), `subgraph m5["users"]`) {
+	if err := run([]string{"graph", "-format", "mermaid"}, &stdout, &stderr); err != nil || !strings.Contains(stdout.String(), `subgraph m7["users"]`) {
 		t.Fatalf("graph: %v\n%s", err, stdout.String())
 	}
 
 	// A wiring mistake is reported by check without starting the app.
-	src, _ := os.ReadFile("users.module.go")
-	write(t, "users.module.go", strings.Replace(string(src), "dygo.Provide(NewUsersService)", "", 1))
+	usersModule := filepath.Join("src", "modules", "users", "module.go")
+	src, _ := os.ReadFile(usersModule)
+	write(t, usersModule, strings.Replace(string(src), "dygo.Provide(NewService)", "", 1))
 	stdout.Reset()
 	stderr.Reset()
 	err = run([]string{"check"}, &stdout, &stderr)
-	if code, ok := err.(exitError); !ok || code != 1 || !strings.Contains(stderr.String(), "*main.UsersService") {
+	if code, ok := err.(exitError); !ok || code != 1 || !strings.Contains(stderr.String(), "*users.Service") {
 		t.Fatalf("broken check: %v\n%s", err, stderr.String())
 	}
 }
 
-// TestNewModularProject checks the modular layout (-t modular): features generated from
-// the root go to src/modules and are imported in app.module.go.
+// TestNewModularProject checks more generators in a new project: names with
+// a dash, a service added to an existing module, and dygo g auth with a name.
 func TestNewModularProject(t *testing.T) {
 	dygotest.Integration(t) // builds real programs
 	repo, err := filepath.Abs("../..")
@@ -327,7 +333,7 @@ func TestNewModularProject(t *testing.T) {
 	}
 	dir := filepath.Join(t.TempDir(), "shop")
 	var out bytes.Buffer
-	if err := run([]string{"new", dir, "-t", "modular", "-replace", repo}, &out, &out); err != nil {
+	if err := run([]string{"new", dir, "-replace", repo}, &out, &out); err != nil {
 		t.Fatalf("%v\n%s", err, out.String())
 	}
 	t.Chdir(dir)
@@ -364,8 +370,9 @@ func TestNewModularProject(t *testing.T) {
 	}
 }
 
-// TestNewSecurityProject checks dygo new -security in both layouts: the
-// project vets and passes its tests, and its routes are locked by default.
+// TestNewSecurityProject checks dygo new -security, with built-in tokens and
+// with -oidc: the project vets and passes its tests, and its routes are
+// locked by default.
 func TestNewSecurityProject(t *testing.T) {
 	dygotest.Integration(t) // builds real programs
 	repo, err := filepath.Abs("../..")
@@ -373,17 +380,14 @@ func TestNewSecurityProject(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, tc := range []struct {
-		layout string
-		oidc   bool
-	}{{"simple", false}, {"modular", false}, {"simple", true}} {
-		layout, name := tc.layout, tc.layout
-		if tc.oidc {
-			name += "-oidc"
-		}
+		name string
+		oidc bool
+	}{{"tokens", false}, {"oidc", true}} {
+		name := tc.name
 		t.Run(name, func(t *testing.T) {
 			dir := filepath.Join(t.TempDir(), "store")
 			var out bytes.Buffer
-			args := []string{"new", dir, "-t", layout, "-security", "-replace", repo}
+			args := []string{"new", dir, "-security", "-replace", repo}
 			if tc.oidc {
 				args = append(args, "-oidc")
 			}
