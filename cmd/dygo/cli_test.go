@@ -222,7 +222,7 @@ func write(t *testing.T, path, data string) {
 	}
 }
 
-// TestNewProject is the phase 5 exit criterion: dygo new, then generate a
+// TestNewProject is the end to end check of the CLI: dygo new, then generate a
 // resource, and the project vets and passes its tests. The inspection commands
 // run against it too. It builds real programs, so -short skips it. The simple
 // layout gets flat files in package main (users.service.go), not packages.

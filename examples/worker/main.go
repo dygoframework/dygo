@@ -1,4 +1,4 @@
-// Command worker is the phase 1 acceptance app: modules, a dynamic global
+// Command worker shows the core without HTTP: modules, a dynamic global
 // module, interface binding, a provider group, lifecycle hooks and graceful
 // shutdown, with no HTTP.
 //

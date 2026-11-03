@@ -1,6 +1,6 @@
 # Guide: HTTP
 
-What phase 2 gives you. New to Dygo? Start with [Step by step: a CRUD controller](#step-by-step-a-crud-controller-get-post-put-patch-delete). Full example: `examples/http-users` (run it with `cd examples/http-users && go run .`).
+Controllers, typed handlers, errors and HTTP tests. New to Dygo? Start with [Step by step: a CRUD controller](#step-by-step-a-crud-controller-get-post-put-patch-delete). Full example: `examples/http-users` (run it with `cd examples/http-users && go run .`).
 
 ## A controller
 

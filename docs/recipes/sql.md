@@ -113,7 +113,7 @@ never need one.
 
 ## A repository
 
-The `sql` module (phase 8) gives a ready-made one: `sql.ForFeature[User]("users")`
+The `sql` module gives a ready-made one: `sql.ForFeature[User]("users")`
 provides `*sql.Repository[User]` with `Find`, `List`, `Page`, `Create`,
 `Update`, `Patch` and `Delete`, built from the struct's `db` tags (see
 `sql/doc.go`). The hand written version below shows the same idea without the
@@ -187,11 +187,11 @@ the real error (with the SQL detail) is logged, never sent to the client.
 ## Transactions
 
 The hand written `InTx` above passes the `*sql.Tx` explicitly. The `sql`
-module (`github.com/dygoframework/dygo/sql`, phase 8) takes the other route
-(decision D53): `db.Tx(ctx, fn)` puts the transaction in `ctx`, and every
+module (`github.com/dygoframework/dygo/sql`) takes the other route:
+`db.Tx(ctx, fn)` puts the transaction in `ctx`, and every
 query that gets that `ctx` joins it, nested calls become savepoints, and
 `sql.Detach(ctx)` gives goroutines a context without it. Pick one style per
-app; this page will be rewritten around the module when it reaches v0.1.0.
+app.
 
 ## Migrations
 

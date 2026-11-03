@@ -303,7 +303,7 @@ func dbInit(cwd string, proj project, o dbInitOptions, stdout io.Writer) error {
 	// 3. The driver module in the app.
 	dbFile := filepath.Join(proj.Dir, "src", "database", "database.go")
 	if _, err := os.Stat(dbFile); err != nil {
-		dbFile = filepath.Join(proj.Dir, "internal", "database", "database.go") // modular projects made before D62
+		dbFile = filepath.Join(proj.Dir, "internal", "database", "database.go") // older modular projects
 	}
 	if src, err := os.ReadFile(dbFile); err == nil && (bytes.Contains(src, []byte("in-memory placeholder")) || bytes.Contains(src, []byte("sql.Module(nil"))) {
 		out, err := render([]file{{dbFile, "db/database.go.tmpl"}}, data)

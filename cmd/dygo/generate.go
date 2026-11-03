@@ -358,9 +358,9 @@ var kindExamples = map[string]string{
 	"rpc": "users-rpc", "migration": "create_users",
 }
 
-// phase6 describes the generators of the phase 6 packages: the files, the
+// pkgKinds describes the generators of the background work packages: the files, the
 // constructor registered as a provider, and the module the root must import.
-var phase6 = map[string]struct {
+var pkgKinds = map[string]struct {
 	file, ctor, pkg, module, next string
 }{
 	"listener": {"listener", "NewListener", "events", "events.Module()", "emit {pkg}.Event from a service that injects *events.Emitter"},
@@ -476,7 +476,7 @@ func generate(cwd, kind, name string, o genOptions, stdout io.Writer) error {
 	}
 	// A simple project keeps everything in its root package, so from the
 	// root, features become flat files there (products.service.go) instead
-	// of a package. auth and the phase 6 kinds stay packages: other code uses
+	// of a package. auth and the background kinds stay packages: other code uses
 	// them by package name (auth.Required(), jobs.JobName).
 	flatPkg := ""
 	if proj.flat(cwd) && flatKinds[kind] {
@@ -629,7 +629,7 @@ func generate(cwd, kind, name string, o genOptions, stdout io.Writer) error {
 		files = []file{at("command.go", "command.go.tmpl"), at("command_test.go", "command_test.go.tmpl")}
 		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(New" + data.P() + "Command)"}
 	case "listener", "cron", "job", "gateway", "rpc":
-		g := phase6[kind]
+		g := pkgKinds[kind]
 		files = []file{at(g.file+".go", kind+".go.tmpl"), at(g.file+"_test.go", kind+"_test.go.tmpl")}
 		reg = moduleEdit{Field: "Providers", Expr: "dygo.Provide(" + g.ctor + ")"}
 	}
@@ -720,7 +720,7 @@ func afterGenerate(cwd string, proj project, kind string, n names, stdout io.Wri
 		}
 		fmt.Fprintf(stdout, "\nNext: go run . %s, and go run . help lists every command.\n", n.Kebab)
 	case "listener", "cron", "job", "gateway", "rpc":
-		g := phase6[kind]
+		g := pkgKinds[kind]
 		root := filepath.Join(proj.Dir, filepath.FromSlash(cmp(proj.Config.RootModuleDir, cmp(proj.Config.Main, "."))))
 		if g.module != "" && !packageContains(root, g.pkg+".Module(") {
 			fmt.Fprintf(stdout, "\nImport %s in the root module (Imports), with the import %q, so the %s runs.\n", g.module, frameworkPath+"/"+g.pkg, kind)

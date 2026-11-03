@@ -1,6 +1,6 @@
 # Guide: the dygo CLI
 
-What phase 5 gives you. The CLI uses only the standard library and is part of the main module.
+The `dygo` CLI creates projects and generates code. It uses only the standard library and is part of the main module.
 
 ```sh
 go install github.com/dygoframework/dygo/cmd/dygo@latest
@@ -56,7 +56,7 @@ shop/
   dygo.json                   {"layout": "simple"}
 ```
 
-`dygo g service products` adds `NewProductsService` to `ProductsModule` when that module exists, and to `AppModule` otherwise. `dygo g auth` and the phase 6 kinds (`listener`, `cron`, `job`, `gateway`, `rpc`) are the exceptions: they still write a package, because other code uses them by package name (`auth.Required()`, `jobs.JobName`). When the root gets crowded, move to the modular layout. Projects made before flat files have no `dygo.json`, so `dygo g` keeps making folders there; add `{"layout": "simple"}` to switch.
+`dygo g service products` adds `NewProductsService` to `ProductsModule` when that module exists, and to `AppModule` otherwise. `dygo g auth` and the background kinds (`listener`, `cron`, `job`, `gateway`, `rpc`) are the exceptions: they still write a package, because other code uses them by package name (`auth.Required()`, `jobs.JobName`). When the root gets crowded, move to the modular layout. Projects made before flat files have no `dygo.json`, so `dygo g` keeps making folders there; add `{"layout": "simple"}` to switch.
 
 ### dygo.json
 
@@ -291,9 +291,9 @@ In production the issuer must use https and `OAUTH_AUDIENCE` must be set, or the
 
 Each command prints one line saying who may call the new routes. Services do not change: security sits on routes, and `security.Require` in a service is yours to add. Without `dygo.json`, a package made by `dygo g security` in the root or `src/modules` counts too.
 
-The full design, and what comes next (refresh tokens, OIDC providers such as Keycloak), is in [phase 9](phase-9-security.md).
+The [Security recipe](recipes/security.md) explains the generated package, refresh tokens and login at an identity provider such as Keycloak (`-oidc`).
 
-## Background work and transports (phase 6)
+## Background work and transports
 
 ```sh
 dygo g listener notify      # events listener: notify/listener.go, Events(r) with events.On
@@ -308,7 +308,7 @@ Each writes the provider and a test, and registers `dygo.Provide(New...)` in the
 ## Database
 
 `dygo db` sets up MySQL or Postgres and runs migrations. Migrations are the source of truth for the
-schema (D55, D58): there is no schema sync from structs.
+schema: there is no schema sync from structs.
 
 ```sh
 dygo new shop -db postgres           # a new project with a database (-db mysql too)
@@ -472,7 +472,7 @@ applies migrations while the app boots instead.
 
 Not built yet: `dygo db seed`, `db reset`, `db validate`, `db sql`, `db shell`,
 `dygo g crud --db` (waits for the `sqltest` helpers), and a schema diff
-(`db diff`, `db schema update`), which is planned as a later milestone.
+(`db diff`, `db schema update`), which is planned for a later release.
 
 ## Look at a running app's shape
 

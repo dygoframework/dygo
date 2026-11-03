@@ -108,7 +108,7 @@ func BenchmarkHandWritten(b *testing.B) {
 }
 
 // BenchmarkPipeline is HandleTyped behind 2 guards, 2 interceptors and 1 pipe,
-// the phase 3 exit criterion.
+// a typical guarded route.
 func BenchmarkPipeline(b *testing.B) {
 	pass := dygo.GuardFunc(func(dygo.ExecutionContext) (bool, error) { return true, nil })
 	through := dygo.InterceptorFunc(func(_ dygo.ExecutionContext, next dygo.CallHandler) (any, error) { return next.Handle() })

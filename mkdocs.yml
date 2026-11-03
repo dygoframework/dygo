@@ -32,12 +32,9 @@ markdown_extensions:
   - pymdownx.highlight
   - pymdownx.superfences
 
-# docs/README.md is the GitHub index of the phase plans; index.md is the site's.
+# docs/README.md is the GitHub index; index.md is the site's.
 exclude_docs: |
   README.md
-
-not_in_nav: |
-  phase-*.md
 
 nav:
   - Home: index.md
@@ -56,7 +53,6 @@ nav:
       - SQL databases: recipes/sql.md
       - Testing: recipes/testing.md
   - Project:
-      - Decisions: decisions.md
       - Benchmarks: benchmarks.md
       - Changelog: changelog.md
       - Security: security.md

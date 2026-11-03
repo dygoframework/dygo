@@ -32,7 +32,7 @@ type Module struct {
 	Providers []Provider
 
 	// Controllers are built like singleton providers but cannot be injected or
-	// exported. The HTTP layer (phase 2) registers their routes.
+	// exported. The HTTP layer registers their routes.
 	Controllers []Provider
 
 	// Exports lists the tokens other modules may inject. A module can export

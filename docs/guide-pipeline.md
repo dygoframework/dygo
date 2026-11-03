@@ -1,6 +1,6 @@
 # Guide: the pipeline
 
-What phase 3 gives you: guards, interceptors, pipes, exception filters, typed metadata and validation. Full example: `examples/http-users` (the `auth` package and `users/controller.go`).
+Guards, interceptors, pipes, exception filters, typed metadata and validation. Full example: `examples/http-users` (the `auth` package and `users/controller.go`).
 
 ```
 Request → Middleware → Guards → Interceptors (before) → bind → Pipes → Handler

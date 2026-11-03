@@ -1,13 +1,13 @@
 # Dygo Academy (example)
 
-A small course platform backend, built to dogfood Dygo for v1.0. It was
+A small course platform backend that shows Dygo in a real app. It was
 scaffolded with the CLI and then given real behaviour:
 
 ```sh
 dygo new academy -t modular
 dygo g resource courses -fields "title:string summary:text? level:string price:float published:bool"
 dygo g resource lessons -fields "courseId:int title:string body:text position:int"
-dygo g security                 # was dygo g auth until phase 9
+dygo g security
 dygo g resource enrollments -fields "courseId:int userId:int"   # then rewritten by hand
 dygo g listener notify
 dygo g job welcome-email
@@ -48,9 +48,3 @@ dygo check && dygo routes
 
 Storage is in memory. The [SQL recipe](../../docs/recipes/sql.md) shows how
 to swap a service's map for Postgres.
-
-## What dogfooding found
-
-See "Dogfooding findings" in [docs/phase-7-v1.md](../../docs/phase-7-v1.md):
-what hurt while building this app, what was fixed in the framework, and what
-is still open.

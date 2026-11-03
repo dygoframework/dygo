@@ -1,4 +1,4 @@
-// Command orders is the phase 6 example: one HTTP route creates an order
+// Command orders shows background work and transports: one HTTP route creates an order
 // through the command bus, the order service emits an event, a listener puts
 // a confirmation email on the queue, and a scheduled job reports the count.
 // GET /orders/{id} goes through the query bus and the response cache. The
@@ -26,7 +26,7 @@ import (
 	"github.com/dygoframework/dygo/schedule"
 )
 
-// AppModule wires the phase 6 modules and the orders feature.
+// AppModule wires the events, cqrs, queue and schedule modules and the orders feature.
 func AppModule() *dygo.Module {
 	return &dygo.Module{
 		Name: "app",

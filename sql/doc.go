@@ -72,6 +72,5 @@
 // and inject it with a field tagged name:"reports" in a dygo.In struct, or
 // put a repository on it with sql.ForFeature[T](table, sql.Using("reports")).
 //
-// This package is v0: its API can still change before v1. See
-// docs/phase-8-database.md for the plan.
+// This package is in beta: its API can still change before v1.
 package sql

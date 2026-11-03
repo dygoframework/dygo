@@ -1,6 +1,6 @@
 # Guide: production essentials
 
-What phase 4 gives you. Everything is optional, and all of it is in `examples/http-users/main.go`.
+Config, logging, middleware, health checks, OpenAPI, rate limits and tracing. Everything is optional, and all of it is in `examples/http-users/main.go`.
 
 ## Config
 
