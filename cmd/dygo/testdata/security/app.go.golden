@@ -5,6 +5,10 @@ import (
 	"github.com/dygoframework/dygo/middleware"
 	"github.com/dygoframework/dygo/sql"
 
+	"example.com/app/billing"
+	"example.com/app/hooks"
+	"example.com/app/posts"
+	"example.com/app/products"
 	"example.com/app/security"
 )
 
@@ -12,8 +16,8 @@ import (
 func AppModule() *dygo.Module {
 	return &dygo.Module{
 		Name:        "app",
-		Imports:     []*dygo.Module{security.Module, sql.Module(nil), ProductsModule, PostsModule},
-		Controllers: []dygo.Provider{dygo.Provide(NewBillingController), dygo.Provide(NewHooksController)},
+		Imports:     []*dygo.Module{security.Module, sql.Module(nil), products.Module, posts.Module},
+		Controllers: []dygo.Provider{dygo.Provide(billing.NewController), dygo.Provide(hooks.NewController)},
 	}
 }
 

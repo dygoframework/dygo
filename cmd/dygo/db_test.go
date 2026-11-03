@@ -141,8 +141,8 @@ func TestDBCommandErrors(t *testing.T) {
 	}
 }
 
-// TestNewDBProject builds projects with a database: dygo new -db for the
-// modular layout, dygo db init for the simple one. They must vet and pass
+// TestNewDBProject builds projects with a database: with dygo new -db, and
+// with dygo db init after dygo new. They must vet and pass
 // dygo check without a database. With DYGO_TEST_POSTGRES_URL and
 // DYGO_TEST_MYSQL_URL set (as in CI), dygo db then creates, migrates and
 // drops a real database through each app.
@@ -157,7 +157,7 @@ func TestNewDBProject(t *testing.T) {
 	t.Run("modular postgres", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "shop")
 		var out bytes.Buffer
-		if err := run([]string{"new", dir, "-t", "modular", "-db", "postgres", "-replace", repo}, &out, &out); err != nil {
+		if err := run([]string{"new", dir, "-db", "postgres", "-replace", repo}, &out, &out); err != nil {
 			t.Fatalf("%v\n%s", err, out.String())
 		}
 		t.Chdir(dir)
@@ -178,7 +178,7 @@ func TestNewDBProject(t *testing.T) {
 		dbRoundTrip(t, os.Getenv("DYGO_TEST_POSTGRES_URL"), "dygo_cli_pg_"+sfx)
 	})
 
-	t.Run("simple mysql", func(t *testing.T) {
+	t.Run("mysql with db init", func(t *testing.T) {
 		dir := filepath.Join(t.TempDir(), "blog")
 		var out bytes.Buffer
 		if err := run([]string{"new", dir, "-replace", repo}, &out, &out); err != nil {
@@ -189,7 +189,7 @@ func TestNewDBProject(t *testing.T) {
 		if err := run([]string{"db", "init", "-driver", "mysql", "-name", "blog_dev"}, &out, &out); err != nil {
 			t.Fatalf("%v\n%s", err, out.String())
 		}
-		for _, want := range []string{"UPDATE app.go (sql.Module(nil) -> mysql.Module())", "UPDATE main.go (db:* commands)", "CREATE migrations/embed.go"} {
+		for _, want := range []string{"UPDATE src/database/database.go", "UPDATE main.go (db:* commands)", "CREATE migrations/embed.go"} {
 			if !strings.Contains(out.String(), want) {
 				t.Errorf("missing %q in\n%s", want, out.String())
 			}
@@ -201,7 +201,7 @@ func TestNewDBProject(t *testing.T) {
 		if err := run([]string{"db", "init", "-driver", "mysql", "-name", "blog_dev", "-skip-tidy"}, &out, &out); err != nil {
 			t.Fatalf("same init again: %v", err)
 		}
-		if strings.Count(readFile(t, "main.go"), "migrate.Main(") != 1 || strings.Count(readFile(t, "app.go"), "mysql.Module()") != 1 {
+		if strings.Count(readFile(t, "main.go"), "migrate.Main(") != 1 || strings.Count(readFile(t, filepath.Join("src", "database", "database.go")), "mysql.Module(") != 1 {
 			t.Fatal("a second init wired twice")
 		}
 		dbRoundTrip(t, os.Getenv("DYGO_TEST_MYSQL_URL"), "dygo_cli_my_"+sfx)
@@ -424,7 +424,7 @@ func TestHelp(t *testing.T) {
 		"help g":         "migration (mig)",
 		"g -h":           "-dry-run",
 		"g res x --help": "Kinds:",
-		"new -help":      "-template",
+		"new -help":      "-module",
 		"routes -h":      "DYGO_INSPECT_OUT",
 		"help db":        "schema drop --force",
 		"db -h":          "schema drop --force",

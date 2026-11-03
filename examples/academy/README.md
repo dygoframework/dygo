@@ -4,7 +4,7 @@ A small course platform backend that shows Dygo in a real app. It was
 scaffolded with the CLI and then given real behaviour:
 
 ```sh
-dygo new academy -t modular
+dygo new academy
 dygo g resource courses -fields "title:string summary:text? level:string price:float published:bool"
 dygo g resource lessons -fields "courseId:int title:string body:text position:int"
 dygo g security

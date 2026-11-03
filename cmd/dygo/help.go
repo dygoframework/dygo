@@ -38,19 +38,19 @@ main loads before dygo.Create must still be valid.
 
 // commandHelp is the detailed help of each command, by its main name.
 var commandHelp = map[string]string{
-	"new": `Usage: dygo new <name> [-t simple|modular] [-db postgres|mysql] [-module path] [-replace dir] [-skip-tidy]
+	"new": `Usage: dygo new <name> [-db postgres|mysql] [-module path] [-replace dir] [-skip-tidy]
 
-Create a project in the directory <name>.
+Create a project in the directory <name>: main.go and app.module.go at the
+root, src/config, src/database and src/health, and src/modules for the
+features that dygo g adds.
 
-  -t, -template   simple (default): everything in package main
-                  modular: main.go, app.module.go, src/modules, ...
   -db             set up a database: postgres or mysql (DATABASE_URL in .env,
                   migrations/, compose.yaml); see dygo help db
   -module         the module path (default: the project name)
   -replace        use a local dygo checkout through a replace directive
   -skip-tidy      do not run go mod tidy
 
-Example: dygo new shop -t modular -db postgres
+Example: dygo new shop -db postgres
 `,
 	"generate": `Usage: dygo generate <kind> <name> [-fields spec] [-dry-run]   (alias: dygo g)
 

@@ -305,7 +305,9 @@ func dbInit(cwd string, proj project, o dbInitOptions, stdout io.Writer) error {
 	if _, err := os.Stat(dbFile); err != nil {
 		dbFile = filepath.Join(proj.Dir, "internal", "database", "database.go") // older modular projects
 	}
-	if src, err := os.ReadFile(dbFile); err == nil && (bytes.Contains(src, []byte("in-memory placeholder")) || bytes.Contains(src, []byte("sql.Module(nil"))) {
+	src, err := os.ReadFile(dbFile)
+	switch {
+	case err == nil && (bytes.Contains(src, []byte("in-memory placeholder")) || bytes.Contains(src, []byte("sql.Module(nil"))):
 		out, err := render([]file{{dbFile, "db/database.go.tmpl"}}, data)
 		if err != nil {
 			return err
@@ -313,8 +315,13 @@ func dbInit(cwd string, proj project, o dbInitOptions, stdout io.Writer) error {
 		if err := write(dbFile, out[dbFile], "UPDATE"); err != nil {
 			return err
 		}
-	} else if err := wireDriverModule(cwd, proj, driver, stdout); err != nil {
-		return err
+	case err == nil && bytes.Contains(src, []byte(driver+".Module(")):
+		// database.go already opens this driver: a second init must not add
+		// another module to the app.
+	default:
+		if err := wireDriverModule(cwd, proj, driver, stdout); err != nil {
+			return err
+		}
 	}
 
 	// 4. The db:* commands in main.

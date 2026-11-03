@@ -1,4 +1,4 @@
-package main
+package billing
 
 import (
 	"testing"
@@ -10,13 +10,14 @@ import (
 	"example.com/app/security/securitytest"
 )
 
-func TestHooksController(t *testing.T) {
+func TestController(t *testing.T) {
 	securitytest.Setup(t)
 	srv := dygotest.New(&dygo.Module{
 		Name:        "test",
 		Imports:     []*dygo.Module{security.Module},
-		Controllers: []dygo.Provider{dygo.Provide(NewHooksController)},
+		Controllers: []dygo.Provider{dygo.Provide(NewController)},
 	}).CompileHTTP(t)
-	var out HooksHelloOut
-	srv.GET("/hooks").Do(t).Status(t, 200).JSON(t, &out)
+	var out HelloOut
+	srv.GET("/billing").Do(t).Status(t, 401)
+	srv.GET("/billing").With(securitytest.User("7", "user")).Do(t).Status(t, 200).JSON(t, &out)
 }

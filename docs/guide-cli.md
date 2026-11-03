@@ -11,17 +11,16 @@ dygo help generate      # a command's arguments and flags (or: dygo g -h)
 ## New project
 
 ```sh
-dygo new shop                        # simple layout: everything in package main
-dygo new shop -t modular             # modular layout: one folder per module (-template modular)
-dygo new shop -security             # secure from the start: runs dygo g security (works with -t modular)
+dygo new shop                        # one folder per module, see the layout below
+dygo new shop -security             # secure from the start: runs dygo g security
 dygo new shop -security -oidc       # the same, with login at Keycloak, Auth0, ... (dygo g security -oidc)
 dygo new shop -db postgres           # with a database (or -db mysql): see "Database" below
 cd shop && go run .                  # http://localhost:9900, docs at /docs
 ```
 
-Apps listen on port 9900 by default (`PORT` in `.env`). Both layouts get a `.env` with your local settings, ready to run, and a `.env.example` with the same settings to commit. Every setting has a comment saying what it does and which values it takes. `.env` is git ignored, so after a fresh clone run `cp .env.example .env`.
+Apps listen on port 9900 by default (`PORT` in `.env`). Every project gets a `.env` with your local settings, ready to run, and a `.env.example` with the same settings to commit. Every setting has a comment saying what it does and which values it takes. `.env` is git ignored, so after a fresh clone run `cp .env.example .env`.
 
-`-t modular` splits the app by module. The two files that start the app sit at the top, and everything else is a folder:
+A project is split by module. The two files that start the app sit at the top, and everything else is a folder:
 
 ```
 shop/
@@ -40,37 +39,19 @@ shop/
 
 `main.go` and `app.module.go` are both package `main`, so the root module is one file you can open, not a package. The other packages sit in `src/`. Unlike `internal/`, Go does not stop other modules from importing `src/` packages; for an application nobody imports, that makes no difference. While dygo is unpublished, `-replace ../dygo-framework` points the project at a local checkout.
 
-### The simple layout stays flat
-
-The default simple layout keeps everything in package `main` at the root, with a hello controller, which suits a small service. `dygo g` keeps it that way: run from the root, it writes flat files named after the feature and their role (`products.service.go`) instead of making a folder, and prefixes the types so features do not clash in one package.
-
-```
-shop/
-  main.go  config.go  app.go  app.controller.go  app_test.go
-  products.go                 the Product entity, CreateProduct and UpdateProduct
-  products.module.go          ProductsModule, imported in AppModule
-  products.service.go         ProductsService, NewProductsService
-  products.controller.go      ProductsController, ProductsCreateIn, ...
-  products.controller_test.go TestProductsCRUD
-  seed.command.go             SeedCommand (dygo g command seed)
-  dygo.json                   {"layout": "simple"}
-```
-
-`dygo g service products` adds `NewProductsService` to `ProductsModule` when that module exists, and to `AppModule` otherwise. `dygo g auth` and the background kinds (`listener`, `cron`, `job`, `gateway`, `rpc`) are the exceptions: they still write a package, because other code uses them by package name (`auth.Required()`, `jobs.JobName`). When the root gets crowded, move to the modular layout. Projects made before flat files have no `dygo.json`, so `dygo g` keeps making folders there; add `{"layout": "simple"}` to switch.
-
 ### dygo.json
 
 ```json
 {"layout": "modular", "main": ".", "featuresDir": "src/modules", "rootModuleDir": "."}
 ```
 
-`layout` is `simple` or `modular`. `main` is the default package for `routes`, `graph`, `check`, `info` and `start` at the project root. `featuresDir` is where `dygo g` puts a feature when run from the root, and `rootModuleDir` is where it is registered (in the module named `app`) when no closer module exists.
+`layout` is always `modular`. `main` is the default package for `routes`, `graph`, `check`, `info` and `start` at the project root. `featuresDir` is where `dygo g` puts a feature when run from the root, and `rootModuleDir` is where it is registered (in the module named `app`) when no closer module exists.
 
 ## Generate code
 
 | Command | Creates | Registers |
 |---|---|---|
-| `dygo g module auth` (`mo`) | `auth/module.go` (`src/modules/auth/` in a modular project) | `auth.Module` in the parent directory's module `Imports`, or `AppModule` in `app.module.go` |
+| `dygo g module auth` (`mo`) | `src/modules/auth/module.go` from the root, `auth/module.go` elsewhere | `auth.Module` in the parent directory's module `Imports`, or `AppModule` in `app.module.go` |
 | `dygo g service auth` (`s`) | `auth/service.go`, `service_test.go` | `dygo.Provide(NewService)` in the nearest module's `Providers` |
 | `dygo g controller auth` (`co`) | `auth/controller.go`, `controller_test.go` | `dygo.Provide(NewController)` in the nearest module's `Controllers` |
 | `dygo g resource order-items` (`res`) | `orderitems/`: module, service (stored in the database set by `DATABASE_URL`, memory by default), controller (CRUD), DTOs with `Validate`, an HTTP test | `orderitems.Module` in the parent module |
@@ -85,7 +66,7 @@ shop/
 
 "Nearest module" is the `&dygo.Module{...}` literal in the target directory or the closest one above it, inside the Go module. When a directory has several, the one named like the package or `"app"` wins. The edit inserts one line and adds the import, so your comments and layout stay. Nothing is overwritten; `-dry-run` prints the plan.
 
-Names: `order-items` gives package `orderitems`, path `/order-items`, entity `OrderItem`. Types inside a package are not prefixed (`orderitems.Service`, not `OrderItemsService`). In a simple project's flat files they are (`OrderItemsService` in `orderitems.service.go`).
+Names: `order-items` gives package `orderitems`, path `/order-items`, entity `OrderItem`. Types inside a package are not prefixed (`orderitems.Service`, not `OrderItemsService`).
 
 ## Entities and fields
 

@@ -1,0 +1,31 @@
+package billing
+
+import (
+	"context"
+
+	"github.com/dygoframework/dygo"
+)
+
+// Controller serves /billing.
+type Controller struct{}
+
+// NewController is the constructor. Add dependencies as parameters.
+func NewController() *Controller {
+	return &Controller{}
+}
+
+// Routes registers the routes.
+func (c *Controller) Routes(r dygo.Router) {
+	r = r.Prefix("/billing")
+	r.Get("/", dygo.HandleNoInput(c.Hello))
+}
+
+// HelloOut is the response of GET /billing.
+type HelloOut struct {
+	Message string `json:"message"`
+}
+
+// Hello answers GET /billing.
+func (c *Controller) Hello(context.Context) (HelloOut, error) {
+	return HelloOut{Message: "hello from billing"}, nil
+}

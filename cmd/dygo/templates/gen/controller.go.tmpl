@@ -1,4 +1,4 @@
-package {{.Package}}
+package {{.Pkg}}
 
 import (
 	"context"
@@ -10,26 +10,26 @@ import (
 {{- end}}
 )
 
-// {{.P}}Controller serves /{{.Kebab}}.
-type {{.P}}Controller struct{}
+// Controller serves /{{.Kebab}}.
+type Controller struct{}
 
-// New{{.P}}Controller is the constructor. Add dependencies as parameters.
-func New{{.P}}Controller() *{{.P}}Controller {
-	return &{{.P}}Controller{}
+// NewController is the constructor. Add dependencies as parameters.
+func NewController() *Controller {
+	return &Controller{}
 }
 
 // Routes registers the routes.
-func (c *{{.P}}Controller) Routes(r dygo.Router) {
+func (c *Controller) Routes(r dygo.Router) {
 	r = r.Prefix("/{{.Kebab}}")
 	r.Get("/", dygo.HandleNoInput(c.Hello){{if and .Sec .Sec.Public}}, {{.Sec.Pkg}}.Public(){{end}})
 }
 
-// {{.P}}HelloOut is the response of GET /{{.Kebab}}.
-type {{.P}}HelloOut struct {
+// HelloOut is the response of GET /{{.Kebab}}.
+type HelloOut struct {
 	Message string `json:"message"`
 }
 
 // Hello answers GET /{{.Kebab}}.
-func (c *{{.P}}Controller) Hello(context.Context) ({{.P}}HelloOut, error) {
-	return {{.P}}HelloOut{Message: "hello from {{.Kebab}}"}, nil
+func (c *Controller) Hello(context.Context) (HelloOut, error) {
+	return HelloOut{Message: "hello from {{.Kebab}}"}, nil
 }

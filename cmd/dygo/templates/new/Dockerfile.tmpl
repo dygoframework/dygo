@@ -3,11 +3,11 @@ WORKDIR /src
 COPY go.mod go.sum* ./
 RUN go mod download
 COPY . .
-RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/app .
+RUN CGO_ENABLED=0 go build -trimpath -ldflags="-s -w" -o /out/server .
 
 FROM gcr.io/distroless/static-debian12:nonroot
-COPY --from=build /out/app /app
+COPY --from=build /out/server /server
 ENV APP_ENV=production PORT=9900
 EXPOSE 9900
 USER nonroot:nonroot
-ENTRYPOINT ["/app"]
+ENTRYPOINT ["/server"]

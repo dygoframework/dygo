@@ -1,4 +1,4 @@
 {
-  "layout": "simple",
+  "main": ".",
   "security": true
 }

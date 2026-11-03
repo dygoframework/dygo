@@ -1,6 +1,6 @@
 // Command dygo is the Dygo CLI.
 //
-//	dygo new <name> [-t modular]         create a project
+//	dygo new <name> [-db postgres|mysql] create a project
 //	dygo generate <kind> <name>          add a module, service, controller, CRUD resource, entity, command, test, auth, listener, cron, job, gateway or rpc (alias: g)
 //	dygo routes [package]                print the route table
 //	dygo graph [-format text|mermaid|dot] [package]

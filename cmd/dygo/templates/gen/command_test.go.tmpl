@@ -1,12 +1,12 @@
-package {{.Package}}
+package {{.Pkg}}
 
 import (
 	"context"
 	"testing"
 )
 
-func Test{{.P}}Command(t *testing.T) {
-	if err := New{{.P}}Command().Run(context.Background(), nil); err != nil {
+func TestCommand(t *testing.T) {
+	if err := NewCommand().Run(context.Background(), nil); err != nil {
 		t.Fatal(err)
 	}
 }

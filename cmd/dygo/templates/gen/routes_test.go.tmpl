@@ -1,4 +1,4 @@
-package {{.Package}}
+package {{.Pkg}}
 
 import (
 	"testing"
@@ -14,12 +14,12 @@ import (
 // package: GET routes without parameters are checked, the others are skipped
 // until you fill in a request. If the module needs others (config, auth),
 // import them around it: dygotest.New(&dygo.Module{Imports: ...}).
-func Test{{.P}}Routes(t *testing.T) {
+func TestRoutes(t *testing.T) {
 {{- if .UsesSQL}}
-	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), {{.P}}Module}}
+	app := &dygo.Module{Name: "test", Imports: []*dygo.Module{sql.MemoryModule(), Module}}
 	srv := dygotest.New(app).With
 {{- else}}
-	srv := dygotest.New({{.P}}Module).With
+	srv := dygotest.New(Module).With
 {{- end}}(validate.Use(validate.Methods())).CompileHTTP(t)
 {{range .Routes}}
 	t.Run("{{.Method}} {{.Path}}", func(t *testing.T) {

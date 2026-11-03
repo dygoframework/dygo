@@ -1,0 +1,16 @@
+// Package products is the products resource: a service and a CRUD controller.
+package products
+
+import (
+	"github.com/dygoframework/dygo"
+	"github.com/dygoframework/dygo/sql"
+)
+
+// Module wires the products resource, stored in the products table.
+// Other modules that import it can inject *Service.
+var Module = &dygo.Module{
+	Name:        "products",
+	Providers:   []dygo.Provider{sql.ForFeature[Product]("products"), dygo.Provide(NewService)},
+	Controllers: []dygo.Provider{dygo.Provide(NewController)},
+	Exports:     []dygo.Token{dygo.TypeOf[*Service]()},
+}
