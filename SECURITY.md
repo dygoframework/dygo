@@ -38,9 +38,9 @@ production on purpose.
 
 ## What the project does
 
-- An `owasp` CI job checks every change against the OWASP Top 10: gosec,
-  govulncheck, the security tests and fuzzing (`make owasp`). See
-  `docs/owasp.md` for what each category checks.
+- The "Security (OWASP Top 10)" CI job checks every change against the OWASP
+  Top 10: gosec, govulncheck, the security tests and fuzzing (`make owasp`).
+  See `docs/owasp.md` for what each category checks.
 - `govulncheck` runs on every module in CI (`make vulncheck`).
 - The request binder is fuzzed (`make fuzz`), covering path, query, header,
   cookie, JSON, url-encoded and multipart input.
