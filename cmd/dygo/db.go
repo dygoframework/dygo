@@ -68,10 +68,17 @@ func cmdDB(args []string, stdout, stderr io.Writer) error {
 	return fmt.Errorf("dygo db: unknown command %q (run dygo db help)", sub)
 }
 
-// runDBCommand builds the app's main package and runs it with the db:*
-// command, so the app's own driver, migrations and .env are used. Building
-// first (rather than go run) passes the exit status through unchanged.
+// runDBCommand runs the app's main package with the db:* command, so the
+// app's own driver, migrations and .env are used.
 func runDBCommand(name string, args []string, stdout, stderr io.Writer) error {
+	return runMainPackage("migrate.Main(", "database commands yet: run dygo db init first", append([]string{name}, args...), stdout, stderr)
+}
+
+// runMainPackage builds the project's main package and runs it with args from
+// the project root, where the app reads .env. Building first (rather than go
+// run) passes the exit status through unchanged. The main package must
+// contain needle; otherwise the error ends with missing.
+func runMainPackage(needle, missing string, args []string, stdout, stderr io.Writer) error {
 	cwd, err := os.Getwd()
 	if err != nil {
 		return err
@@ -81,10 +88,10 @@ func runDBCommand(name string, args []string, stdout, stderr io.Writer) error {
 		return err
 	}
 	mainDir := filepath.Join(proj.Dir, filepath.FromSlash(cmp(proj.Config.Main, ".")))
-	if !packageContains(mainDir, "migrate.Main(") {
-		return fmt.Errorf("the main package (%s) does not run database commands yet: run dygo db init first", rel(cwd, mainDir))
+	if !packageContains(mainDir, needle) {
+		return fmt.Errorf("the main package (%s) does not run %s", rel(cwd, mainDir), missing)
 	}
-	tmp, err := os.MkdirTemp("", "dygo-db-")
+	tmp, err := os.MkdirTemp("", "dygo-run-")
 	if err != nil {
 		return err
 	}
@@ -96,8 +103,7 @@ func runDBCommand(name string, args []string, stdout, stderr io.Writer) error {
 	if err := build.Run(); err != nil {
 		return fmt.Errorf("building %s: %w", rel(cwd, mainDir), err)
 	}
-	// The app reads .env from its working directory: the project root.
-	run := exec.Command(bin, append([]string{name}, args...)...)
+	run := exec.Command(bin, args...)
 	run.Dir = proj.Dir
 	run.Stdin, run.Stdout, run.Stderr = os.Stdin, stdout, stderr
 	if err := run.Run(); err != nil {

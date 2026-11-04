@@ -297,6 +297,18 @@ func TestNewProject(t *testing.T) {
 			t.Fatalf("go run . seed:\n%s", b)
 		}
 	}
+	// dygo run builds the app and runs the same command, and lists them all.
+	out.Reset()
+	if err := run([]string{"run", "seed", "x", "-h"}, &out, &out); err != nil || !strings.Contains(out.String(), "seed: args [x -h]") {
+		t.Fatalf("dygo run seed: %v\n%s", err, out.String())
+	}
+	out.Reset()
+	if err := run([]string{"run"}, &out, &out); err != nil || !strings.Contains(out.String(), "seed") {
+		t.Fatalf("dygo run: %v\n%s", err, out.String())
+	}
+	if err := run([]string{"run", "nope"}, &out, &out); err != exitError(1) {
+		t.Fatalf("dygo run nope: %v, want exit status 1", err)
+	}
 
 	var stdout, stderr bytes.Buffer
 	if err := run([]string{"routes"}, &stdout, &stderr); err != nil {

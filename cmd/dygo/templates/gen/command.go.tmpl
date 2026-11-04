@@ -5,7 +5,7 @@ import (
 	"fmt"
 )
 
-// Command is the {{.Kebab}} console command: go run . {{.Kebab}} [args].
+// Command is the {{.Kebab}} console command: dygo run {{.Kebab}} [args].
 // It runs inside the application context, so add the services it needs as
 // parameters of NewCommand.
 type Command struct{}
@@ -18,7 +18,7 @@ func NewCommand() *Command {
 // Name selects the command on the command line.
 func (c *Command) Name() string { return "{{.Kebab}}" }
 
-// Description is shown by go run . help.
+// Description is shown by dygo run, which lists the commands.
 func (c *Command) Description() string { return "TODO: describe {{.Kebab}}" }
 
 // Run does the work. ctx is cancelled on Ctrl+C.

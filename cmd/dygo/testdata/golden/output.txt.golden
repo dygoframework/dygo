@@ -85,7 +85,7 @@ The main package (.) does not run console commands yet. Add this to main before 
 
 with the import "github.com/dygoframework/dygo/console".
 
-Next: go run . seed-data, and go run . help lists every command.
+Next: dygo run seed-data, and dygo run lists every command.
 CREATE account/module.go
 CREATE account/config.go
 CREATE account/users.go

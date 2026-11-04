@@ -56,7 +56,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return errUsage
 	}
 	cmd, args := args[0], args[1:]
-	if cmd != "db" && cmd != "help" && wantsHelp(args) {
+	// db and run read their own arguments: dygo run seed -h is the command's help.
+	if cmd != "db" && cmd != "run" && cmd != "help" && wantsHelp(args) {
 		if err := printCommandHelp(cmd, stdout); err == nil {
 			return nil
 		}
@@ -80,6 +81,8 @@ func run(args []string, stdout, stderr io.Writer) error {
 		return cmdGen(args, stdout)
 	case "start":
 		return cmdStart(args, stdout, stderr)
+	case "run":
+		return cmdRun(args, stdout, stderr)
 	case "version":
 		fmt.Fprintln(stdout, "dygo", version())
 		return nil

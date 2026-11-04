@@ -23,6 +23,7 @@ Commands:
   info       Go and Dygo versions, module and route counts
   gen        write Routes methods from //dygo:get (and other) comments
   start      build and run; -watch restarts on change
+  run        run one of the app's console commands
   version    print the dygo version
 
 Run dygo help <command> (or dygo <command> -h) for its arguments and flags.
@@ -111,6 +112,15 @@ Arguments after -- go to the app.
 
   -watch   rebuild and restart when a Go file, go.mod or .env file changes
   -poll    how often -watch looks for changes
+`,
+	"run": `Usage: dygo run [command] [arguments]
+
+Build the app and run one of its console commands (see dygo g command),
+from the project root so .env is read. The arguments go to the command, so
+dygo run seed -h is the command's own help. With no command, it lists the
+app's commands.
+
+Example: dygo run seed --users 10
 `,
 	"version": "Usage: dygo version\n\nPrint the dygo version.\n",
 }
