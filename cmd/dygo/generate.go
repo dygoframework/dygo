@@ -631,7 +631,7 @@ func afterGenerate(cwd string, proj project, kind string, n names, stdout io.Wri
 				"\t\tos.Exit(console.Main(ctx, AppModule(cfg, log), os.Args[1:], dygo.WithLogger(log)))\n"+
 				"\t}\n\nwith the import %q.\n", rel(cwd, main), frameworkPath+"/console")
 		}
-		fmt.Fprintf(stdout, "\nNext: go run . %s, and go run . help lists every command.\n", n.Kebab)
+		fmt.Fprintf(stdout, "\nNext: dygo run %s, and dygo run lists every command.\n", n.Kebab)
 	case "listener", "cron", "job", "gateway", "rpc":
 		g := pkgKinds[kind]
 		root := filepath.Join(proj.Dir, filepath.FromSlash(cmp(proj.Config.RootModuleDir, cmp(proj.Config.Main, "."))))

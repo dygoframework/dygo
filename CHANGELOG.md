@@ -12,6 +12,13 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 
 ## Unreleased
 
+### Added
+
+- `dygo run <command> [args]` builds the app and runs one of its console
+  commands from the project root, so `.env` is read. `dygo run` alone lists
+  the commands. `dygo g command` and the generated files now point to it
+  instead of `go run .`, which still works.
+
 ### Removed
 
 - The simple `dygo new` layout. Every project now gets the modular layout

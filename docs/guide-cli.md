@@ -144,8 +144,8 @@ No CSRF token is needed for a token-authenticated JSON API; protect routes with 
 
 ```sh
 dygo g command seed      # seed/command.go, registered in the nearest module
-go run . seed --users 10 # runs inside the application context
-go run . help            # lists the commands with their descriptions
+dygo run seed --users 10 # builds the app and runs the command inside its context
+dygo run                 # lists the commands with their descriptions
 ```
 
 A command is a provider with `Name()` and `Run(ctx, args)` (and optionally `Description()`), so it can inject any service. Package `console` builds the application context, runs the command, then shuts down, so `OnModuleInit` and shutdown hooks run as they do for the server. `ctx` is cancelled on Ctrl+C. New projects' `main.go` starts with:
