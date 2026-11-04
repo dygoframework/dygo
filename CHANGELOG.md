@@ -23,6 +23,8 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 
 ### Changed
 
+- Getting started now runs the new project with `dygo start -watch`, so it
+  restarts on changes, and notes that `go run .` also works.
 - sql: a query on a table or column the database does not have now fails
   with `sql.ErrSchema` ("schema out of date"), and its message says to run
   `dygo g migration` and `dygo db migrate`. Postgres 42P01/42703 and MySQL
