@@ -15,8 +15,11 @@ You need Go 1.27 or newer.
 go install github.com/dygoframework/dygo/cmd/dygo@latest
 dygo new shop
 cd shop
-go run .
+dygo start -watch
 ```
+
+`dygo start -watch` rebuilds and restarts the app when a `.go`, `go.mod`,
+`go.sum` or `.env` file changes. `go run .` also works.
 
 Open <http://localhost:9900/health/live> for a liveness check and
 <http://localhost:9900/docs> for the OpenAPI UI. To lay out the project
