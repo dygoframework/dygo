@@ -17,6 +17,7 @@ updates:
       - /ws
       - /graphql
       - /sql
+      - /ai
       - /benchmarks
     schedule:
       interval: weekly

@@ -14,6 +14,15 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
 
 ### Added
 
+- New `ai` sub-module (`github.com/dygoframework/dygo/ai`), the first step of
+  AI support: one `ai.Model` interface with `Chat` and `Stream`, `ai.Ask`,
+  `ai.Collect`, `ai.SSE` to stream an answer to the browser, typed errors
+  (`ai.ErrRateLimited`, `ai.ErrAuth`, ...) and `ai.PublicMessage` for what a
+  client may see, and middleware: `ai.Retry` (backoff with jitter, honours the
+  vendor's wait up to 30 s, never repeats streamed text), `ai.Timeout` and
+  `ai.Log` (never logs prompts or answers). `ai.Provide` puts a model in the
+  container. `ai/fake` is a scripted model for tests. Vendor providers come
+  next.
 - `dygo run <command> [args]` builds the app and runs one of its console
   commands from the project root, so `.env` is read. `dygo run` alone lists
   the commands. `dygo g command` and the generated files now point to it
