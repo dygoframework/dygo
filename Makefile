@@ -4,7 +4,7 @@ GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.
 
 # These are their own Go modules (they have third party dependencies, or use
 # one that does), so ./... at the root does not reach them.
-SUBMODULES := validate/playground observe examples/http-users examples/academy queue/asynq micro/nats micro/grpc micro/redis micro/kafka ws graphql sql
+SUBMODULES := validate/playground observe examples/http-users examples/academy queue/asynq micro/nats micro/grpc micro/redis micro/kafka ws graphql sql ai
 
 # Tests come in two levels (docs/guide-testing.md):
 #   unit         fast, nothing outside the process: go test -short
@@ -135,6 +135,7 @@ test-owasp:
 	go test -race -count=1 -run 'TestHTTP(BindErrorsAndLimits|NotFoundAndPanic)' .
 	go test -count=1 -run 'TestGenerateSecurity|TestNewSecurityProject' ./cmd/dygo
 	cd examples/academy && go test -race -count=1 ./internal/modules/...
+	cd ai && go test -race -count=1 -run 'PublicMessage|SSEErrorIsPublic|NeverLogsPrompts|MessageIsCapped|CollectStopsAtLimit|RetryHonoursRetryAfter' ./...
 	cd sql && go test -race -count=1 -run 'OrderByChecksColumns|MemoryRepository|TagErrors|MapError|WithoutLeakingPassword' ./...
 
 owasp: gosec vulncheck test-owasp fuzz
