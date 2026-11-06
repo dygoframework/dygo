@@ -21,8 +21,16 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   client may see, and middleware: `ai.Retry` (backoff with jitter, honours the
   vendor's wait up to 30 s, never repeats streamed text), `ai.Timeout` and
   `ai.Log` (never logs prompts or answers). `ai.Provide` puts a model in the
-  container. `ai/fake` is a scripted model for tests. Vendor providers come
-  next.
+  container. `ai/fake` is a scripted model for tests.
+- `ai` providers: `ai/openai` (also Ollama, vLLM, LM Studio and other servers
+  that speak the chat completions API, through `AI_BASE_URL`) and
+  `ai/anthropic`, both on the standard library with streaming, token usage and
+  typed errors. `ai.Module(openai.Provider, anthropic.Provider)` reads
+  `AI_PROVIDER`, `AI_MODEL`, `AI_API_KEY`, `AI_BASE_URL`, `AI_TIMEOUT` and
+  `AI_MAX_RETRIES` from the environment, `.env.local` and `.env`, so switching
+  vendors is a change to `.env`. The key never shows in logs or output
+  (`ai.Secret`), `AI_BASE_URL` must be https unless it is this machine,
+  redirects are never followed and response sizes are capped.
 - `dygo run <command> [args]` builds the app and runs one of its console
   commands from the project root, so `.env` is read. `dygo run` alone lists
   the commands. `dygo g command` and the generated files now point to it
