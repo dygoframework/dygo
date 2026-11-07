@@ -235,7 +235,7 @@ func ensureDatabase(cwd string, proj project, stdout io.Writer) error {
 		}
 	}
 	if gomod, err := os.ReadFile(filepath.Join(proj.Dir, "go.mod")); err == nil && !strings.Contains(string(gomod), frameworkPath+"/sql ") {
-		if err := addSQLModule(proj); err != nil {
+		if err := addSubModule(proj, "sql"); err != nil {
 			return err
 		}
 		fmt.Fprintf(stdout, "\nRun go mod tidy to add %s/sql to go.mod.\n", frameworkPath)

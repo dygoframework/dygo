@@ -457,6 +457,38 @@ Not built yet: `dygo db seed`, `db reset`, `db validate`, `db sql`, `db shell`,
 `dygo g crud --db` (waits for the `sqltest` helpers), and a schema diff
 (`db diff`, `db schema update`), which is planned for a later release.
 
+## AI models
+
+```sh
+dygo ai init -provider anthropic     # or openai, or ollama for a local model (asks in a terminal)
+```
+
+`dygo ai init` adds the `ai` module to the app it runs in; apps that never run
+it do not download it. It:
+
+- writes `AI_PROVIDER`, `AI_MODEL` (and `AI_BASE_URL` for ollama or
+  `-base-url`) to `.env` and `.env.example`, with an empty `AI_API_KEY` in
+  `.env` and `change-me` in `.env.example`. Put your key in `.env`, which is
+  git-ignored; dygo never takes it as a flag, so it stays out of your shell
+  history;
+- imports `ai.Module(openai.Provider, anthropic.Provider)` in the root module,
+  so switching vendors later is a change to `.env`;
+- makes the app test boot with a fake model
+  (`.OverrideValue(dygo.TypeOf[ai.Model](), fake.New())`), so `go test` needs
+  no key and never calls the vendor;
+- adds `github.com/dygoframework/dygo/ai` to `go.mod` and runs `go mod tidy`.
+
+| Flag | |
+|---|---|
+| `-provider openai\|anthropic\|ollama` | the vendor; ollama is the openai provider at `http://localhost:11434/v1`, with no key |
+| `-model id` | the model (default: one per provider) |
+| `-base-url URL` | a compatible server; https, or http on localhost |
+| `-force` | replace AI settings already in `.env` (it refuses otherwise) |
+| `-skip-tidy` | do not run `go mod tidy` |
+
+Running it again changes nothing and keeps your key. The app then refuses to
+start until `AI_API_KEY` is set, with `anthropic: AI_API_KEY is required`.
+
 ## Look at a running app's shape
 
 ```sh

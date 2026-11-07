@@ -17,6 +17,7 @@ Commands:
   new        create a project
   generate   add code to the project (alias: g)
   db         set up the database and run migrations
+  ai         add AI models to the app (dygo ai init)
   routes     print the route table
   graph      print the module and provider graph
   check      validate the wiring without starting the app
@@ -93,6 +94,7 @@ terminal it asks whether a dropped column was renamed; -rename old:new
 answers it in advance (comma separated).
 `,
 	"db":     dbUsage,
+	"ai":     aiUsage,
 	"routes": "Usage: dygo routes [-json] [package]\n\nPrint the route table: method, path, handler, input and output types.\n" + inspectNote,
 	"graph":  "Usage: dygo graph [-format text|mermaid|dot|json] [package]\n\nPrint the module and provider graph.\n" + inspectNote,
 	"check":  "Usage: dygo check [package]\n\nValidate the module wiring (missing providers, visibility, cycles, scopes)\nwithout starting the app. Exits 1 with the errors when it is broken.\n" + inspectNote,

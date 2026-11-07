@@ -31,6 +31,12 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   vendors is a change to `.env`. The key never shows in logs or output
   (`ai.Secret`), `AI_BASE_URL` must be https unless it is this machine,
   redirects are never followed and response sizes are capped.
+- `dygo ai init [-provider openai|anthropic|ollama] [-model id] [-base-url URL]`
+  adds AI to an app: the `AI_*` settings in `.env` and `.env.example` (the
+  key is never a flag), `ai.Module(openai.Provider, anthropic.Provider)` in
+  the root module, a fake model in the app test so `go test` needs no key,
+  and the `ai` module in `go.mod`. Apps that don't run it don't download the
+  `ai` module.
 - `dygo run <command> [args]` builds the app and runs one of its console
   commands from the project root, so `.env` is read. `dygo run` alone lists
   the commands. `dygo g command` and the generated files now point to it
