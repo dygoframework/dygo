@@ -200,3 +200,35 @@ func TestNewAIProject(t *testing.T) {
 		t.Fatalf("check: %v\n%s%s", err, stdout.String(), stderr.String())
 	}
 }
+
+func TestAIInitFailures(t *testing.T) {
+	var out bytes.Buffer
+	t.Chdir(t.TempDir()) // no go.mod
+	if err := run([]string{"ai", "init", "-provider", "openai"}, &out, &out); err == nil {
+		t.Fatal("init outside a project passed")
+	}
+
+	dir := t.TempDir()
+	write(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.27.0\n")
+	proj, err := findProject(dir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	write(t, filepath.Join(dir, ".env", "x"), "") // .env is a directory
+	if err := aiInit(dir, proj, aiInitOptions{Provider: "openai", SkipTidy: true}, &out); err == nil {
+		t.Fatal("an unreadable .env passed")
+	}
+
+	// go mod tidy fails on a missing import: init reports it and returns.
+	dir = t.TempDir()
+	write(t, filepath.Join(dir, "go.mod"), "module example.com/app\n\ngo 1.27.0\n")
+	write(t, filepath.Join(dir, "main.go"), "package main\n\nimport _ \"example.invalid/nope\"\n\nfunc main() {}\n")
+	if proj, err = findProject(dir); err != nil {
+		t.Fatal(err)
+	}
+	out.Reset()
+	t.Setenv("GOPROXY", "off")
+	if err := aiInit(dir, proj, aiInitOptions{Provider: "openai"}, &out); err != nil || !strings.Contains(out.String(), "go mod tidy failed") {
+		t.Fatalf("%v\n%s", err, out.String())
+	}
+}
