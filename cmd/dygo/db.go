@@ -353,7 +353,7 @@ func dbInit(cwd string, proj project, o dbInitOptions, stdout io.Writer) error {
 
 	// 6. go.mod: the sql module, from the same checkout as dygo when it is
 	// replaced.
-	if err := addSQLModule(proj); err != nil {
+	if err := addSubModule(proj, "sql"); err != nil {
 		return err
 	}
 	if !o.SkipTidy {
@@ -448,6 +448,10 @@ var envComments = map[string]string{
 #   postgres://USER:PASSWORD@HOST:5432/NAME?sslmode=disable
 #   mysql://USER:PASSWORD@HOST:3306/NAME
 # Services that dygo g crud wrote in memory do not use it.`,
+	"AI_PROVIDER": `# AI model, written by dygo ai init. AI_PROVIDER is openai or anthropic
+# (openai also covers servers such as Ollama through AI_BASE_URL). Keep
+# AI_API_KEY in .env only: it is git-ignored. Optional: AI_TIMEOUT=60s,
+# AI_MAX_RETRIES=2.`,
 }
 
 func setEnv(path, key, value, header string) error {
@@ -600,16 +604,16 @@ func wireMigrateMain(cwd string, proj project, mainFile, migDir, driver string, 
 	return nil
 }
 
-// addSQLModule adds a replace for the sql module when dygo itself is
-// replaced by a local checkout, as dygo new -replace does; go mod tidy then
-// adds the require.
-func addSQLModule(proj project) error {
+// addSubModule adds a replace for a dygo sub-module (sql, ai) when dygo
+// itself is replaced by a local checkout, as dygo new -replace does; go mod
+// tidy then adds the require.
+func addSubModule(proj project, sub string) error {
 	path := filepath.Join(proj.Dir, "go.mod")
 	src, err := os.ReadFile(path)
 	if err != nil {
 		return err
 	}
-	if bytes.Contains(src, []byte(frameworkPath+"/sql ")) {
+	if bytes.Contains(src, []byte(frameworkPath+"/"+sub+" ")) {
 		return nil
 	}
 	m := regexp.MustCompile(`(?m)^replace\s+` + regexp.QuoteMeta(frameworkPath) + `\s+=>\s+(\S+)\s*$`).FindSubmatch(src)
@@ -620,7 +624,7 @@ func addSQLModule(proj project) error {
 	if !strings.HasPrefix(dir, ".") && !filepath.IsAbs(dir) {
 		return nil // replaced by another module version, not a directory
 	}
-	line := fmt.Sprintf("\nreplace %s/sql => %s/sql\n", frameworkPath, filepath.ToSlash(dir))
+	line := fmt.Sprintf("\nreplace %s/%s => %s/%s\n", frameworkPath, sub, filepath.ToSlash(dir), sub)
 	return os.WriteFile(path, append(src, line...), 0o644)
 }
 
