@@ -29,7 +29,7 @@ var UsersModule = &dygo.Module{
 - **[Getting started](getting-started.md)**: a tested JSON API in ten minutes.
 - **Guides**: [modules and providers](guide-core.md), [HTTP](guide-http.md),
   [pipeline](guide-pipeline.md), [production](guide-production.md),
-  [CLI](guide-cli.md), [transports](guide-transports.md).
+  [CLI](guide-cli.md), [transports](guide-transports.md), [AI](guide-ai.md).
 - **Recipes**: [authentication](recipes/auth.md), [security](recipes/security.md), [SQL](recipes/sql.md),
   [testing](recipes/testing.md).
 - **[Benchmarks](benchmarks.md)**: typed JSON handlers cost the same as hand

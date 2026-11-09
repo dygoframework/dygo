@@ -16,6 +16,8 @@ ten minutes. The same pages make up the docs site (`make docs`).
   check and `start -watch`.
 - [Transports](guide-transports.md): events, schedule, CQRS, cache, queues,
   microservices (NATS, gRPC, Kafka, Redis) and WebSocket gateways.
+- [AI](guide-ai.md): call a model, stream the answer to the browser, typed
+  output, errors and tests with a fake model.
 - [Testing and benchmarks](guide-testing.md): unit and integration tests,
   micro benchmarks and the framework comparison.
 

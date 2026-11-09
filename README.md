@@ -107,7 +107,7 @@ Method, all scenarios and raw results: [benchmarks/](benchmarks/README.md).
 - [Getting started](docs/getting-started.md): a tested JSON API in ten minutes
 - Guides: [core](docs/guide-core.md), [HTTP](docs/guide-http.md),
   [pipeline](docs/guide-pipeline.md), [production](docs/guide-production.md),
-  [CLI](docs/guide-cli.md), [transports](docs/guide-transports.md)
+  [CLI](docs/guide-cli.md), [transports](docs/guide-transports.md), [AI](docs/guide-ai.md)
 - Recipes: [security](docs/recipes/security.md), [SQL databases](docs/recipes/sql.md),
   [testing](docs/recipes/testing.md)
 - Examples: [examples/](examples)

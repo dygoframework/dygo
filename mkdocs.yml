@@ -46,6 +46,7 @@ nav:
       - Production: guide-production.md
       - CLI: guide-cli.md
       - Transports: guide-transports.md
+      - AI: guide-ai.md
       - Testing and benchmarks: guide-testing.md
   - Recipes:
       - Authentication: recipes/auth.md

@@ -7,7 +7,7 @@ promise covers is in the "Stability" section of the package docs
 (`go doc github.com/dygoframework/dygo`).
 
 Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
-`validate/playground`, `sql`) are versioned and tagged on their own, such as
+`validate/playground`, `sql`, `ai`) are versioned and tagged on their own, such as
 `ws/v1.0.0-beta.1`. Their changes are listed here too, under the module's name.
 
 ## Unreleased
@@ -39,6 +39,11 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   answer goes back to the model once to fix (`ai.Fixes(0..3)`), then the call
   fails with `ai.ErrBadOutput`. `ai.Emit` streams an answer over a WebSocket,
   as `ai.SSE` does for the browser: `ai.Emit(ctx, stream, c.Emit, "answer")`.
+- AI guide (`docs/guide-ai.md`): set up with `.env`, ask, stream to the
+  browser or a WebSocket, typed output, errors, middleware and tests with
+  `ai/fake`. New `examples/chat`: a chat page that streams answers over
+  server-sent events and a route that turns an email into a typed ticket,
+  tested with the fake model.
 - `openapi.JSONSchema(t)` returns a self-contained JSON Schema (named structs
   in `$defs`) for one Go type.
 - `dygo ai init [-provider openai|anthropic|ollama] [-model id] [-base-url URL]`
