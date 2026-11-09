@@ -78,3 +78,30 @@ func Provide(m Model, mw ...Middleware) *dygo.Module {
 		Exports:   []dygo.Token{dygo.TypeOf[Model]()},
 	}
 }
+
+// Emit sends a streamed answer through emit, such as a WebSocket client's
+// Emit: one event named event per chunk with its text, then event+".end". If
+// the stream fails, the last event is event+".error" with [PublicMessage] as
+// data, and Emit returns the real error. It also stops and returns the error
+// when emit fails, which cancels the call.
+//
+//	ws.HandleNoReply(func(ctx context.Context, c *ws.Client, in AskInput) error {
+//		return ai.Emit(ctx, g.model.Stream(ctx, ai.Prompt(in.Question)), c.Emit, "answer")
+//	})
+func Emit(ctx context.Context, stream iter.Seq2[Chunk, error], emit func(ctx context.Context, event string, data any) error, event string) error {
+	for c, err := range stream {
+		if err != nil {
+			if !errors.Is(err, context.Canceled) {
+				_ = emit(ctx, event+".error", PublicMessage(err))
+			}
+			return err
+		}
+		if c.Text == "" {
+			continue
+		}
+		if err := emit(ctx, event, c.Text); err != nil {
+			return err
+		}
+	}
+	return emit(ctx, event+".end", "")
+}

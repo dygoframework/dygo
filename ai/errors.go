@@ -19,6 +19,7 @@ var (
 	ErrUnavailable    = errors.New("ai: provider unavailable")
 	ErrTooLarge       = errors.New("ai: answer larger than the limit")
 	ErrNotSupported   = errors.New("ai: not supported by this provider")
+	ErrBadOutput      = errors.New("ai: answer does not match the expected type")
 )
 
 // maxMessage caps Error.Message, so a vendor cannot fill logs with a huge body.

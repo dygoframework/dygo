@@ -226,3 +226,21 @@ func TestNew(t *testing.T) {
 		t.Fatal(err)
 	}
 }
+
+func TestChatSchema(t *testing.T) {
+	var sent map[string]any
+	m := server(t, "sk-test", func(w http.ResponseWriter, body map[string]any) {
+		sent = body
+		_, _ = io.WriteString(w, `{"choices":[{"message":{"role":"assistant","content":"{}"},"finish_reason":"stop"}]}`)
+	})
+	req := ai.Prompt("x")
+	req.Schema = &ai.Schema{Name: "Ticket", JSON: json.RawMessage(`{"type":"object"}`)}
+	if _, err := m.Chat(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	f := sent["response_format"].(map[string]any)
+	js := f["json_schema"].(map[string]any)
+	if f["type"] != "json_schema" || js["name"] != "Ticket" || js["strict"] != false || js["schema"].(map[string]any)["type"] != "object" {
+		t.Fatalf("sent %v", f)
+	}
+}

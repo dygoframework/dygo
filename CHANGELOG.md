@@ -31,6 +31,16 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   vendors is a change to `.env`. The key never shows in logs or output
   (`ai.Secret`), `AI_BASE_URL` must be https unless it is this machine,
   redirects are never followed and response sizes are capped.
+- `ai.Generate[T]` asks a model for a typed answer: it builds a JSON Schema
+  from the struct's `json` and `validate` tags (`ai.SchemaFor`, the same code
+  `openapi` uses), asks for JSON with the vendor's JSON mode (OpenAI
+  `response_format`, Anthropic `output_config`), decodes it and runs
+  `validate.Methods` (or `ai.CheckWith(playground.New())` for tags). A bad
+  answer goes back to the model once to fix (`ai.Fixes(0..3)`), then the call
+  fails with `ai.ErrBadOutput`. `ai.Emit` streams an answer over a WebSocket,
+  as `ai.SSE` does for the browser: `ai.Emit(ctx, stream, c.Emit, "answer")`.
+- `openapi.JSONSchema(t)` returns a self-contained JSON Schema (named structs
+  in `$defs`) for one Go type.
 - `dygo ai init [-provider openai|anthropic|ollama] [-model id] [-base-url URL]`
   adds AI to an app: the `AI_*` settings in `.env` and `.env.example` (the
   key is never a flag), `ai.Module(openai.Provider, anthropic.Provider)` in

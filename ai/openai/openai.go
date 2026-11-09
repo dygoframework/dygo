@@ -60,6 +60,20 @@ type request struct {
 	Temperature   *float64       `json:"temperature,omitempty"`
 	Stream        bool           `json:"stream,omitempty"`
 	StreamOptions *streamOptions `json:"stream_options,omitempty"`
+	Format        *format        `json:"response_format,omitempty"`
+}
+
+// format asks for JSON of a schema. strict is off: strict mode refuses
+// optional fields, and ai.Generate checks the answer anyway.
+type format struct {
+	Type       string     `json:"type"`
+	JSONSchema jsonSchema `json:"json_schema"`
+}
+
+type jsonSchema struct {
+	Name   string          `json:"name"`
+	Schema json.RawMessage `json:"schema"`
+	Strict bool            `json:"strict"`
 }
 
 type streamOptions struct {
@@ -104,6 +118,9 @@ func (m *Model) body(req ai.Request, stream bool) request {
 	}
 	if stream {
 		r.Stream, r.StreamOptions = true, &streamOptions{IncludeUsage: true}
+	}
+	if req.Schema != nil {
+		r.Format = &format{Type: "json_schema", JSONSchema: jsonSchema{Name: req.Schema.Name, Schema: req.Schema.JSON}}
 	}
 	return r
 }

@@ -49,3 +49,38 @@ func BenchmarkStreamMiddlewareCollect(b *testing.B) {
 		}
 	}
 }
+
+func BenchmarkGenerate(b *testing.B) {
+	f := fake.New()
+	for range b.N {
+		f.Add(fake.Reply(`{"title":"Login broken","priority":"high","tags":[{"name":"auth"}]}`))
+	}
+	ctx, req := context.Background(), ai.Prompt("make a ticket")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if _, err := ai.Generate[Ticket](ctx, f, req); err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkEmit(b *testing.B) {
+	parts := make([]string, 100)
+	for i := range parts {
+		parts[i] = "word "
+	}
+	f := fake.New()
+	for range b.N {
+		f.Add(fake.Chunks(parts...))
+	}
+	emit := func(context.Context, string, any) error { return nil }
+	ctx, req := context.Background(), ai.Prompt("hi")
+	b.ReportAllocs()
+	b.ResetTimer()
+	for range b.N {
+		if err := ai.Emit(ctx, f.Stream(ctx, req), emit, "answer"); err != nil {
+			b.Fatal(err)
+		}
+	}
+}

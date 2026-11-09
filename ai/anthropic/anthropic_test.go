@@ -206,3 +206,23 @@ func TestNew(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestChatSchema(t *testing.T) {
+	var sent map[string]any
+	m := server(t, func(w http.ResponseWriter, body map[string]any) {
+		sent = body
+		_, _ = io.WriteString(w, `{"content":[{"type":"text","text":"{}"}],"stop_reason":"end_turn"}`)
+	})
+	req := ai.Prompt("x")
+	req.Schema = &ai.Schema{Name: "Ticket", JSON: json.RawMessage(`{"type":"object"}`)}
+	if _, err := m.Chat(context.Background(), req); err != nil {
+		t.Fatal(err)
+	}
+	f := sent["output_config"].(map[string]any)["format"].(map[string]any)
+	if f["type"] != "json_schema" || f["schema"].(map[string]any)["type"] != "object" {
+		t.Fatalf("sent %v", sent["output_config"])
+	}
+	if _, ok := sent["response_format"]; ok {
+		t.Fatal("unexpected response_format")
+	}
+}

@@ -122,6 +122,7 @@ type MediaType struct {
 // Schema is a JSON Schema (the subset Dygo generates).
 type Schema struct {
 	Ref                  string             `json:"$ref,omitempty"`
+	Defs                 map[string]*Schema `json:"$defs,omitempty"`
 	Type                 any                `json:"type,omitempty"` // string, or []string with "null"
 	Format               string             `json:"format,omitempty"`
 	Description          string             `json:"description,omitempty"`
@@ -145,6 +146,61 @@ type Schema struct {
 type generator struct {
 	schemas map[string]*Schema
 	names   map[reflect.Type]string
+	ref     string // prefix of $ref values; empty means components
+}
+
+// refPrefix is where $refs point: the document's components, or $defs.
+func (g *generator) refPrefix() string {
+	if g.ref == "" {
+		return "#/components/schemas/"
+	}
+	return g.ref
+}
+
+// JSONSchema returns a self-contained JSON Schema for t, built the same way
+// as the schemas of a document: json tags give the names, validate tags give
+// limits and required fields. Named structs other than t itself go in $defs.
+// The ai package uses it to ask a model for typed output.
+func JSONSchema(t reflect.Type) *Schema {
+	const prefix = "#/$defs/"
+	g := &generator{schemas: map[string]*Schema{}, names: map[reflect.Type]string{}, ref: prefix}
+	root := g.schema(t)
+	if name, ok := strings.CutPrefix(root.Ref, prefix); ok {
+		cp := *g.schemas[name] // a copy: the root gets $defs, the def must not
+		root = &cp
+		if !refers(g.schemas, prefix+name) {
+			delete(g.schemas, name)
+		}
+	}
+	if len(g.schemas) > 0 {
+		root.Defs = g.schemas
+	}
+	return root
+}
+
+// refers reports whether any schema in defs holds the $ref ref.
+func refers(defs map[string]*Schema, ref string) bool {
+	var walk func(*Schema) bool
+	walk = func(s *Schema) bool {
+		if s == nil {
+			return false
+		}
+		if s.Ref == ref || walk(s.Items) || walk(s.AdditionalProperties) {
+			return true
+		}
+		for _, p := range s.Properties {
+			if walk(p) {
+				return true
+			}
+		}
+		return false
+	}
+	for _, s := range defs {
+		if walk(s) {
+			return true
+		}
+	}
+	return false
 }
 
 var (
@@ -203,7 +259,7 @@ func (g *generator) schema(t reflect.Type) *Schema {
 			g.schemas[name] = &Schema{} // placeholder for recursive types
 			*g.schemas[name] = *g.object(t)
 		}
-		return &Schema{Ref: "#/components/schemas/" + name}
+		return &Schema{Ref: g.refPrefix() + name}
 	}
 	return &Schema{}
 }

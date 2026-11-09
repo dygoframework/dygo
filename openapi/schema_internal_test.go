@@ -117,3 +117,46 @@ func TestApplyRules(t *testing.T) {
 		})
 	}
 }
+
+type jsNode struct {
+	Name     string    `json:"name" validate:"required,max=20"`
+	Children []*jsNode `json:"children,omitempty"`
+}
+
+type jsLeaf struct {
+	ID int `json:"id"`
+}
+
+type jsRoot struct {
+	Title string   `json:"title"`
+	Leaf  jsLeaf   `json:"leaf"`
+	Tags  []string `json:"tags,omitempty"`
+}
+
+func TestJSONSchema(t *testing.T) {
+	s := JSONSchema(reflect.TypeFor[jsRoot]())
+	if s.Type != "object" || s.Ref != "" {
+		t.Fatalf("root should be inlined: %+v", s)
+	}
+	if s.Properties["leaf"].Ref != "#/$defs/jsLeaf" || s.Defs["jsLeaf"] == nil {
+		t.Fatalf("leaf should be a $def: %+v", s.Properties["leaf"])
+	}
+	if _, ok := s.Defs["jsRoot"]; ok {
+		t.Fatal("unreferenced root kept in $defs")
+	}
+
+	rec := JSONSchema(reflect.TypeFor[*jsNode]())
+	if rec.Defs["jsNode"] == nil || rec.Defs["jsNode"].Defs != nil {
+		t.Fatalf("recursive root must stay in $defs, without its own $defs: %+v", rec.Defs)
+	}
+	if *rec.Properties["name"].MaxLength != 20 {
+		t.Fatal("validate tags not applied")
+	}
+	if _, err := json.Marshal(rec); err != nil {
+		t.Fatal(err)
+	}
+
+	if s := JSONSchema(reflect.TypeFor[map[string]int]()); s.Type != "object" || s.Defs != nil {
+		t.Fatalf("map: %+v", s)
+	}
+}
