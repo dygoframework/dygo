@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Dygo chat</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 42rem; margin: 2rem auto; padding: 0 1rem; color: #222; background: #fff; }
+  #log p { white-space: pre-wrap; margin: .5rem 0; padding: .5rem .75rem; border-radius: .5rem; }
+  .user { background: #e8f0fe; }
+  .assistant { background: #f3f3f3; }
+  .error { background: #fde8e8; }
+  form { display: flex; gap: .5rem; }
+  input { flex: 1; font: inherit; padding: .5rem; }
+  button { font: inherit; padding: .5rem 1rem; }
+  @media (prefers-color-scheme: dark) {
+    body { color: #eee; background: #111; }
+    .user { background: #1d2b44; } .assistant { background: #222; } .error { background: #4a1f1f; }
+  }
+</style>
+</head>
+<body>
+<h1>Dygo chat</h1>
+<div id="log"></div>
+<form id="ask">
+  <input id="text" autocomplete="off" placeholder="Ask something" required maxlength="4000">
+  <button>Send</button>
+</form>
+<script>
+// The page keeps the conversation and sends all of it with each question;
+// the server keeps no state. The answer comes back as server-sent events.
+const history = [];
+const log = document.getElementById("log");
+
+function bubble(role, text) {
+  const p = document.createElement("p");
+  p.className = role;
+  p.textContent = text;
+  log.append(p);
+  return p;
+}
+
+document.getElementById("ask").addEventListener("submit", async (e) => {
+  e.preventDefault();
+  const input = document.getElementById("text");
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = "";
+  history.push({ role: "user", text });
+  bubble("user", text);
+  const out = bubble("assistant", "");
+
+  const res = await fetch("/chat", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ messages: history.slice(-40) }),
+  });
+  if (!res.ok) {
+    out.className = "error";
+    out.textContent = (await res.json()).message || "Something went wrong.";
+    history.pop();
+    return;
+  }
+  const reader = res.body.pipeThrough(new TextDecoderStream()).getReader();
+  let buf = "";
+  for (;;) {
+    const { value, done } = await reader.read();
+    if (done) break;
+    buf += value;
+    let i;
+    while ((i = buf.indexOf("\n\n")) >= 0) {
+      const raw = buf.slice(0, i);
+      buf = buf.slice(i + 2);
+      let event = "message";
+      const data = [];
+      for (const line of raw.split("\n")) {
+        if (line.startsWith("event: ")) event = line.slice(7);
+        else if (line.startsWith("data: ")) data.push(line.slice(6));
+      }
+      if (event === "error") { out.className = "error"; out.textContent = data.join("\n"); history.pop(); return; }
+      if (event === "message") out.textContent += data.join("\n");
+    }
+  }
+  history.push({ role: "assistant", text: out.textContent });
+});
+</script>
+</body>
+</html>

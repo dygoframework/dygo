@@ -4,7 +4,7 @@ GOLANGCI := go run github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.15.
 
 # These are their own Go modules (they have third party dependencies, or use
 # one that does), so ./... at the root does not reach them.
-SUBMODULES := validate/playground observe examples/http-users examples/academy queue/asynq micro/nats micro/grpc micro/redis micro/kafka ws graphql sql ai
+SUBMODULES := validate/playground observe examples/http-users examples/academy queue/asynq micro/nats micro/grpc micro/redis micro/kafka ws graphql sql ai examples/chat
 
 # Tests come in two levels (docs/guide-testing.md):
 #   unit         fast, nothing outside the process: go test -short
@@ -164,3 +164,4 @@ check:
 	cd examples/worker && $(CURDIR)/.bin/dygo check
 	cd examples/orders && $(CURDIR)/.bin/dygo check
 	cd examples/academy && $(CURDIR)/.bin/dygo check
+	cd examples/chat && AI_PROVIDER=openai AI_MODEL=check $(CURDIR)/.bin/dygo check

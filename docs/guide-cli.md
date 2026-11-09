@@ -487,7 +487,7 @@ it do not download it. It:
 | `-skip-tidy` | do not run `go mod tidy` |
 
 Running it again changes nothing and keeps your key. The app then refuses to
-start until `AI_API_KEY` is set, with `anthropic: AI_API_KEY is required`.
+start until `AI_API_KEY` is set, with `anthropic: AI_API_KEY is required`. The [AI guide](guide-ai.md) shows how to use the model.
 
 ## Look at a running app's shape
 
