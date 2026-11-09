@@ -11,15 +11,18 @@
 //		return ai.Ask(ctx, s.model, "Summarize: "+text)
 //	}
 //
+// [Generate] asks for a typed answer and decodes it into a Go struct.
+//
 // [Provide] puts a model in the container, wrapped in [Middleware] such as
 // [Retry], [Timeout] and [Log]. A streamed answer goes to the browser with
-// [SSE].
+// [SSE], or over a WebSocket with [Emit].
 //
 // The package uses only the standard library and Dygo core.
 package ai
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
 	"iter"
 	"strings"
@@ -96,6 +99,17 @@ type Request struct {
 	MaxTokens int
 	// Temperature, from 0 to 2, when set.
 	Temperature *float64
+	// Schema, when set, asks for a JSON answer of that shape. [Generate]
+	// sets it; providers use the vendor's JSON mode.
+	Schema *Schema
+}
+
+// Schema is the JSON Schema of an answer. Build one with [SchemaFor].
+type Schema struct {
+	// Name names the shape for the vendor, such as "Ticket".
+	Name string
+	// JSON is the schema itself.
+	JSON json.RawMessage
 }
 
 // Prompt returns a request with one user message.
@@ -123,6 +137,9 @@ func (r Request) Validate() error {
 				return invalid("message %d: part %d is nil", i, j)
 			}
 		}
+	}
+	if r.Schema != nil && (r.Schema.Name == "" || !json.Valid(r.Schema.JSON)) {
+		return invalid("Schema needs a name and valid JSON")
 	}
 	if r.MaxTokens < 0 {
 		return invalid("MaxTokens is negative")

@@ -47,6 +47,8 @@ func TestValidate(t *testing.T) {
 		"negative max":  {Messages: []ai.Message{ai.User("x")}, MaxTokens: -1},
 		"temp too high": {Messages: []ai.Message{ai.User("x")}, Temperature: temp(2.1)},
 		"temp negative": {Messages: []ai.Message{ai.User("x")}, Temperature: temp(-0.1)},
+		"schema name":   {Messages: []ai.Message{ai.User("x")}, Schema: &ai.Schema{JSON: []byte(`{}`)}},
+		"schema json":   {Messages: []ai.Message{ai.User("x")}, Schema: &ai.Schema{Name: "x", JSON: []byte(`{`)}},
 	}
 	for name, r := range bad {
 		if err := r.Validate(); !errors.Is(err, ai.ErrInvalidRequest) {

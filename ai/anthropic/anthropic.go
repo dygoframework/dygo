@@ -65,6 +65,15 @@ type request struct {
 	MaxTokens   int       `json:"max_tokens"`
 	Temperature *float64  `json:"temperature,omitempty"`
 	Stream      bool      `json:"stream,omitempty"`
+	Output      *output   `json:"output_config,omitempty"`
+}
+
+// output asks for JSON of a schema (structured outputs).
+type output struct {
+	Format struct {
+		Type   string          `json:"type"`
+		Schema json.RawMessage `json:"schema"`
+	} `json:"format"`
 }
 
 type usage struct {
@@ -108,6 +117,10 @@ func (m *Model) body(req ai.Request, stream bool) request {
 	r.Messages = make([]message, len(req.Messages))
 	for i, msg := range req.Messages {
 		r.Messages[i] = message{Role: string(msg.Role), Content: msg.Text()}
+	}
+	if req.Schema != nil {
+		r.Output = &output{}
+		r.Output.Format.Type, r.Output.Format.Schema = "json_schema", req.Schema.JSON
 	}
 	return r
 }
