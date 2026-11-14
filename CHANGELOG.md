@@ -7,13 +7,22 @@ promise covers is in the "Stability" section of the package docs
 (`go doc github.com/dygoframework/dygo`).
 
 Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
-`validate/playground`, `sql`, `ai`) are versioned and tagged on their own, such as
+`validate/playground`, `sql`, `ai`, `storage`) are versioned and tagged on their own, such as
 `ws/v1.0.0-beta.1`. Their changes are listed here too, under the module's name.
 
 ## Unreleased
 
 ### Added
 
+- New `storage` sub-module (`github.com/dygoframework/dygo/storage`) for
+  files: one `storage.Store` interface (`Put`, `Get`, `Stat`, `Delete`, `List`,
+  `URL`), `storage.Module` reading `STORAGE_*` from `.env`, key checks that
+  stop path escapes, `storage.SaveUpload` for form uploads (size limit and
+  content type sniffed from the file, 413 and 415 errors), and a "storage"
+  readiness check. `storage/local` keeps files in a folder through `os.Root`
+  with atomic writes. `storage/storagetest` has a temporary local store for
+  tests and the checks every driver must pass. The S3 and RustFS drivers come
+  next.
 - New `ai` sub-module (`github.com/dygoframework/dygo/ai`), the first step of
   AI support: one `ai.Model` interface with `Chat` and `Stream`, `ai.Ask`,
   `ai.Collect`, `ai.SSE` to stream an answer to the browser, typed errors
