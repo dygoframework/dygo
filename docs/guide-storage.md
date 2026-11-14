@@ -1,9 +1,9 @@
 # Storage: keep files
 
-The `storage` module keeps an app's files: uploads, avatars, exports. Services
-take one small interface, `storage.Store`, and the driver behind it is picked
-in `.env`. Moving from a folder on disk to a bucket later is then a config
-change, not a code change.
+The `storage` module keeps an app's files, such as uploads, avatars and
+exports, in a folder on disk or in a bucket. Services take one small
+interface, `storage.Store`, and the driver behind it is picked in `.env`, so
+moving from a folder to a bucket later is a config change, not a code change.
 
 `storage` is its own Go module, in beta. It uses only the standard library and
 Dygo core.
