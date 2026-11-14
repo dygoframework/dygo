@@ -18,6 +18,8 @@ ten minutes. The same pages make up the docs site (`make docs`).
   microservices (NATS, gRPC, Kafka, Redis) and WebSocket gateways.
 - [AI](guide-ai.md): call a model, stream the answer to the browser, typed
   output, errors and tests with a fake model.
+- [Storage](guide-storage.md): keep files on disk or in a bucket, uploads with
+  size and type limits, links, and tests with a temporary store.
 - [Testing and benchmarks](guide-testing.md): unit and integration tests,
   micro benchmarks and the framework comparison.
 

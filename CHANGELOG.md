@@ -22,7 +22,7 @@ Sub-modules (`ws`, `graphql`, `micro/*`, `queue/asynq`, `observe`,
   readiness check. `storage/local` keeps files in a folder through `os.Root`
   with atomic writes. `storage/storagetest` has a temporary local store for
   tests and the checks every driver must pass. The S3 and RustFS drivers come
-  next.
+  next. Guide: `docs/guide-storage.md`.
 - New `ai` sub-module (`github.com/dygoframework/dygo/ai`), the first step of
   AI support: one `ai.Model` interface with `Chat` and `Stream`, `ai.Ask`,
   `ai.Collect`, `ai.SSE` to stream an answer to the browser, typed errors
