@@ -7,7 +7,7 @@ replace github.com/dygoframework/dygo => ..
 require (
 	github.com/dygoframework/dygo v1.0.0-beta.1
 	github.com/go-sql-driver/mysql v1.10.1
-	github.com/jackc/pgx/v5 v5.12.0
+	github.com/jackc/pgx/v5 v5.13.0
 )
 
 require (
